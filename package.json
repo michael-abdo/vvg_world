@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3002",
     "dev:clean": "node scripts/dev/dev-clean.js",
     "dev:seed": "node scripts/dev/dev-with-seed.js",
     "build": "next build",
