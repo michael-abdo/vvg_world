@@ -1,0 +1,214 @@
+- Pre-Deployment Tasks
+  - Verify Infrastructure Access
+    - Test SSM connection to EC2
+      - Run: ./connect-ec2.sh
+      - Verify session starts successfully
+    - Test RDS connectivity from EC2
+      - Connect via SSM first
+      - Run: mysql -h vtcawsinnovationmysql01-cluster.cluster-c1hfshlb6czo.us-west-2.rds.amazonaws.com -u michael -p -e "SELECT 1"
+      - Record success/failure
+    - Check EC2 Node.js version
+      - Run: node --version
+      - Compare with local version
+      - Install matching version if needed using nvm
+  - Fix Azure AD Configuration
+    - Log into Azure Portal
+      - Navigate to App Registrations
+      - Find NDA Analyzer app
+    - Add Production Redirect URIs
+      - Add: https://legal.vtc.systems/nda-analyzer/api/auth/callback/azure-ad
+      - Add: https://legal.vtc.systems/nda-analyzer/auth/signin
+      - Save changes
+    - Update Reply URLs
+      - Ensure https://legal.vtc.systems/nda-analyzer is listed
+      - Remove any localhost URLs from production
+  - Prepare Deployment Files
+    - Update .env.production
+      - Set NEXTAUTH_URL=https://legal.vtc.systems/nda-analyzer
+      - Set STORAGE_PROVIDER=local (for initial deployment)
+      - Set correct RDS credentials
+      - Set NODE_ENV=production
+    - Create deployment validation script
+      - Save as validate-deployment.sh
+      - Include all connectivity tests
+      - Make executable
+    - Update PM2 ecosystem config
+      - Verify paths are correct
+      - Add memory limit (max_memory_restart: '1G')
+      - Set correct working directory
+- Database Setup Tasks
+  - Create Database (from EC2 via SSM)
+    - Connect to RDS
+      - Use mysql client from EC2
+      - Authenticate with credentials
+    - Create nda_analyzer database
+      - Run: CREATE DATABASE IF NOT EXISTS nda_analyzer;
+      - Run: USE nda_analyzer;
+    - Run migrations
+      - Copy migration SQL from local
+      - Execute all CREATE TABLE statements
+      - Verify tables created successfully
+  - Verify Database Security
+    - Check EC2 to RDS connectivity
+      - Ensure security groups allow connection
+      - Test with telnet to port 3306
+    - Verify user permissions
+      - Check GRANT permissions for user
+      - Ensure user can CREATE, INSERT, UPDATE, DELETE
+- Application Deployment Tasks
+  - Initial Deployment
+    - Connect to EC2 via SSM
+      - Use ./connect-ec2.sh
+      - Verify ubuntu user access
+    - Clone repository
+      - Run: cd /home/ubuntu
+      - Run: git clone [repo-url] nda-analyzer
+      - Run: cd nda-analyzer
+    - Install dependencies
+      - Run: npm ci (not npm install)
+      - Monitor for any errors
+      - Check Node version compatibility
+    - Setup application directories
+      - Run: mkdir -p .storage
+      - Run: chmod 755 .storage
+      - Run: chown ubuntu:ubuntu .storage
+  - Configuration Setup
+    - Copy production environment file
+      - Upload .env.production to EC2
+      - Place in /home/ubuntu/nda-analyzer/
+      - Verify all variables are set
+    - Test configuration
+      - Run: node -e "require('dotenv').config({path:'.env.production'}); console.log(process.env.NODE_ENV)"
+      - Should output: production
+  - Process Management Setup
+    - Install PM2 globally
+      - Run: sudo npm install -g pm2
+      - Verify installation
+    - Start application
+      - Run: pm2 start deployment/ecosystem.config.js --env production
+      - Check status: pm2 status
+      - View logs: pm2 logs nda-analyzer
+    - Configure PM2 startup
+      - Run: pm2 startup
+      - Follow the command it outputs
+      - Run: pm2 save
+- NGINX Configuration Tasks
+  - Configure NGINX
+    - Edit default site
+      - Run: sudo vi /etc/nginx/sites-enabled/default
+      - Add server block for legal.vtc.systems
+    - Add proxy configuration
+      - Set proxy_pass http://localhost:3000;
+      - Add proxy headers
+      - Set buffer sizes per Jack's video
+    - Add specific configurations
+      - client_max_body_size 10M;
+      - proxy_buffer_size 128k;
+      - proxy_buffers 4 256k;
+      - proxy_busy_buffers_size 256k;
+  - Test and reload NGINX
+    - Validate configuration
+      - Run: sudo nginx -t
+      - Fix any syntax errors
+    - Reload NGINX
+      - Run: sudo systemctl reload nginx
+      - Check status: sudo systemctl status nginx
+- Post-Deployment Validation
+  - Test Core Functionality
+    - Test homepage loads
+      - Visit https://legal.vtc.systems/nda-analyzer
+      - Should redirect to sign-in
+    - Test authentication
+      - Click sign in
+      - Verify Azure AD redirect works
+      - Complete login flow
+      - Verify redirect back to app
+    - Test file upload
+      - Upload a test PDF
+      - Verify storage (local or S3)
+      - Check file appears in documents list
+    - Test document comparison
+      - Select two documents
+      - Run comparison
+      - Verify results display
+  - Monitor Application Health
+    - Check PM2 status
+      - Run: pm2 status
+      - Verify no restarts
+      - Check memory usage
+    - Review application logs
+      - Run: pm2 logs nda-analyzer --lines 100
+      - Look for errors
+      - Check for memory warnings
+    - Test API endpoints
+      - GET /api/health
+      - GET /api/db-health
+      - GET /api/storage-health
+  - Performance Validation
+    - Check response times
+      - Homepage should load < 3s
+      - API calls should respond < 1s
+    - Monitor resource usage
+      - Run: htop
+      - Check CPU and memory
+      - Ensure no resource exhaustion
+- Troubleshooting Tasks
+  - Common Issues
+    - If build hangs
+      - Use npm run start:prod instead
+      - This runs dev mode with production env
+      - Document as known issue
+    - If auth fails
+      - Check NEXTAUTH_URL matches exactly
+      - Verify Azure AD redirect URIs
+      - Check for trailing slashes
+    - If uploads fail
+      - Check .storage directory exists
+      - Verify permissions (755)
+      - Check disk space
+    - If database connection fails
+      - Verify security groups
+      - Check RDS endpoint
+      - Test from EC2 command line
+  - Emergency Rollback Plan
+    - Stop application
+      - Run: pm2 stop nda-analyzer
+      - Prevents further issues
+    - Review logs
+      - Run: pm2 logs nda-analyzer --err
+      - Identify root cause
+    - Fix and restart
+      - Apply fixes
+      - Run: pm2 restart nda-analyzer
+      - Monitor closely
+- Future Optimization Tasks
+  - Fix build hanging issue
+    - Investigate circular dependencies
+    - Try different Node versions
+    - Consider downgrading Next.js
+    - Document findings
+  - Enable S3 storage
+    - Configure EC2 IAM role
+      - Add S3 read/write permissions
+      - Attach to EC2 instance
+    - Update configuration
+      - Set STORAGE_PROVIDER=s3
+      - Restart application
+    - Migrate existing files
+      - Copy from .storage to S3
+      - Update database records
+  - Re-enable middleware
+    - Test middleware locally first
+    - Fix eval() issues
+    - Deploy incrementally
+    - Monitor for errors
+  - Setup monitoring
+    - Configure CloudWatch
+      - CPU and memory alarms
+      - Disk space monitoring
+    - Setup uptime monitoring
+      - Use external service
+      - Alert on downtime
+    - Log aggregation
+      - Send PM2 logs to CloudWatch
+      - Setup log retention

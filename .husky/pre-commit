@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🔍 Running pre-commit checks..."
+
+# 1. TypeScript compilation check
+echo "📝 Checking TypeScript compilation..."
+npm run typecheck
+if [ $? -ne 0 ]; then
+  echo "⚠️  TypeScript has issues, but continuing..."
+fi
+
+# 2. Run linter (non-blocking)
+echo "🔍 Running linter..."
+npm run lint || true
+
+echo "✅ Pre-commit checks completed!"

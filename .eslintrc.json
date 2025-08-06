@@ -1,0 +1,11 @@
+{
+  "extends": [
+    "next/core-web-vitals"
+  ],
+  "rules": {
+    // Code quality
+    "prefer-const": "error",
+    "no-var": "error",
+    "object-shorthand": "error"
+  }
+}
