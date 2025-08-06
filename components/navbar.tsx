@@ -12,12 +12,18 @@ export function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
   const { session, user } = useAuth();
-  const userName = user?.name || 'Sign In';
+  
+  // TEMPORARY HARDCODED VALUES - Easy to switch back to automated
+  const USE_HARDCODED = true; // Set to false to use auth
+  const userName = USE_HARDCODED ? 'Michael Abdo' : (user?.name || 'Sign In');
+  const appName = USE_HARDCODED ? 'VVG World' : (process.env.NEXT_PUBLIC_APP_NAME || 'Template App');
+  const isAuthenticated = USE_HARDCODED ? true : !!session;
+  
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const handleProfileClick = (e: React.MouseEvent) => {
-    if (!session) {
+    if (!isAuthenticated) {
       e.preventDefault();
       // Use the current page as the callback URL when signing in
       // Ensure pathname is never null by providing a default value
@@ -57,7 +63,7 @@ export function Navbar() {
               <polyline points="10 9 9 9 8 9"></polyline>
             </svg>
           </div>
-          <span className="text-[#152C5B] font-medium">{process.env.NEXT_PUBLIC_APP_NAME || 'Template App'}</span>
+          <span className="text-[#152C5B] font-medium">{appName}</span>
         </Link>
 
         {/* Center - Logo */}
@@ -78,7 +84,7 @@ export function Navbar() {
           </button>
 
           {/* Dropdown menu */}
-          {session && showDropdown && (
+          {isAuthenticated && showDropdown && (
             <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
               <div className="px-4 py-2 border-b border-gray-100">
                 <p className="text-sm font-medium text-gray-900">{userName}</p>

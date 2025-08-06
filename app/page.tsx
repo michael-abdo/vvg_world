@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, FileText, Shield, Zap } from "lucide-react";
+import { ArrowRight, FileText, Shield, Zap, Lightbulb, List } from "lucide-react";
 import { pagePath, apiPath } from "@/lib/utils/path-utils";
 
 export default function Home() {
@@ -10,21 +10,23 @@ export default function Home() {
       <div className="container mx-auto px-4 pt-20 pb-16">
         <div className="text-center max-w-3xl mx-auto">
           <h1 className="text-5xl font-bold text-gray-900 mb-6">
-            Document Processing Template
+            VVG World Pain Points Platform
           </h1>
           <p className="text-xl text-gray-600 mb-8">
-            A production-ready Next.js template for document upload, processing, and comparison.
-            Built with TypeScript, Tailwind CSS, and enterprise-grade security.
+            Share your pain points to help make VVG even better. 
+            Every pain point helps us improve and build our future together.
           </p>
-          <div className="flex gap-4 justify-center">
-            <Link href={pagePath("/sign-in")}>
+          <div className="flex gap-4 justify-center flex-wrap">
+            <Link href={pagePath("/ideas")}>
               <Button size="lg" className="gap-2">
-                Get Started <ArrowRight className="w-4 h-4" />
+                <Lightbulb className="w-4 h-4" />
+                Submit a Pain Point
               </Button>
             </Link>
-            <Link href={apiPath("/health")}>
-              <Button size="lg" variant="outline">
-                Check API Status
+            <Link href={pagePath("/submissions")}>
+              <Button size="lg" variant="outline" className="gap-2">
+                <List className="w-4 h-4" />
+                View Submissions
               </Button>
             </Link>
           </div>
@@ -36,63 +38,69 @@ export default function Home() {
         <div className="grid md:grid-cols-3 gap-8">
           <div className="text-center">
             <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-              <FileText className="w-8 h-8 text-blue-600" />
+              <Lightbulb className="w-8 h-8 text-blue-600" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">Document Processing</h3>
+            <h3 className="text-xl font-semibold mb-2">Share Your Pain Points</h3>
             <p className="text-gray-600">
-              Upload and process PDF, DOCX, and TXT files with automatic text extraction
+              Submit pain points to improve VVG operations, safety, and efficiency
             </p>
           </div>
           <div className="text-center">
             <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
               <Shield className="w-8 h-8 text-green-600" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">Enterprise Security</h3>
+            <h3 className="text-xl font-semibold mb-2">Track Progress</h3>
             <p className="text-gray-600">
-              Azure AD authentication, secure storage, and comprehensive audit logging
+              Follow your pain points from submission through review to resolution
             </p>
           </div>
           <div className="text-center">
             <div className="bg-purple-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
               <Zap className="w-8 h-8 text-purple-600" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">Production Ready</h3>
+            <h3 className="text-xl font-semibold mb-2">Make an Impact</h3>
             <p className="text-gray-600">
-              DRY architecture, comprehensive error handling, and automated testing
+              See your pain points resolved and help shape the future of VVG
             </p>
           </div>
         </div>
       </div>
 
-      {/* Tech Stack Section */}
+      {/* How It Works Section */}
       <div className="bg-gray-50 py-16">
         <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-8">Built With Modern Technologies</h2>
-          <div className="flex flex-wrap justify-center gap-4">
-            {[
-              "Next.js 15",
-              "TypeScript 5",
-              "Tailwind CSS",
-              "Radix UI",
-              "NextAuth.js",
-              "MySQL",
-              "AWS S3",
-              "OpenAI API"
-            ].map((tech) => (
-              <span
-                key={tech}
-                className="px-4 py-2 bg-white rounded-full text-sm font-medium text-gray-700 shadow-sm"
-              >
-                {tech}
-              </span>
-            ))}
+          <h2 className="text-3xl font-bold text-center mb-8">How It Works</h2>
+          <div className="max-w-3xl mx-auto">
+            <div className="space-y-6">
+              <div className="flex items-start space-x-4">
+                <div className="bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold">1</div>
+                <div>
+                  <h3 className="font-semibold text-lg">Submit Your Pain Point</h3>
+                  <p className="text-gray-600">Fill out a simple form with your pain point details and category</p>
+                </div>
+              </div>
+              <div className="flex items-start space-x-4">
+                <div className="bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold">2</div>
+                <div>
+                  <h3 className="font-semibold text-lg">Automatic Routing</h3>
+                  <p className="text-gray-600">Your pain point is automatically categorized and sent to the right department</p>
+                </div>
+              </div>
+              <div className="flex items-start space-x-4">
+                <div className="bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold">3</div>
+                <div>
+                  <h3 className="font-semibold text-lg">Review & Resolution</h3>
+                  <p className="text-gray-600">Track your pain point's progress as it moves through review to resolution</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Footer */}
       <footer className="container mx-auto px-4 py-8 text-center text-gray-600">
-        <p>VVG Template - A clean slate for your next project</p>
+        <p>VVG World - Building a better future together</p>
       </footer>
     </div>
   );

@@ -26,7 +26,7 @@ function SuccessContent() {
             Thank You!
           </h1>
           <p className="text-gray-600 mb-6">
-            Your idea has been successfully submitted. We appreciate your contribution to making VVG better!
+            Your pain point has been successfully submitted. We appreciate your contribution to making VVG better!
           </p>
 
           {/* Submission ID */}
@@ -43,7 +43,7 @@ function SuccessContent() {
             <ul className="space-y-2 text-sm text-gray-600">
               <li className="flex items-start">
                 <span className="text-blue-600 mr-2">•</span>
-                Your idea will be reviewed by our team
+                Your pain point will be reviewed by our team
               </li>
               <li className="flex items-start">
                 <span className="text-blue-600 mr-2">•</span>
@@ -61,7 +61,13 @@ function SuccessContent() {
             <Link href="/ideas" className="block">
               <Button className="w-full">
                 <FileText className="mr-2 h-4 w-4" />
-                Submit Another Idea
+                Submit Another Pain Point
+              </Button>
+            </Link>
+            <Link href="/submissions" className="block">
+              <Button variant="secondary" className="w-full">
+                <FileText className="mr-2 h-4 w-4" />
+                View All Submissions
               </Button>
             </Link>
             <Link href="/" className="block">
