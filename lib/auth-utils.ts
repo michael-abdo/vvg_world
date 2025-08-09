@@ -2,9 +2,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "./auth-options";
 import { redirect } from "next/navigation";
 import { NextRequest, NextResponse } from "next/server";
-import { isDocumentOwner, ApiErrors, TimestampUtils } from './utils';
-import { documentDb } from './template/database';
-import type { TemplateDocument } from '@/types/template';
+import { ApiErrors, TimestampUtils } from './utils';
 import { ensureStorageInitialized } from './storage';
 import { ErrorLogger, ApiError } from './error-logger';
 import { APP_CONSTANTS, config, EnvironmentHelpers } from './config';
@@ -129,63 +127,6 @@ export function withAuthDynamic<T extends Record<string, any>>(
   };
 }
 
-/**
- * Middleware for document access - combines auth + document retrieval + ownership check
- * This reduces boilerplate in all document-related endpoints
- * 
- * @example
- * export const GET = withDocumentAccess(async (request, userEmail, document, context) => {
- *   // document is already validated and ownership checked
- *   return NextResponse.json(document);
- * });
- */
-export function withDocumentAccess<T extends { id: string }>(
-  handler: (
-    request: NextRequest,
-    userEmail: string,
-    document: TemplateDocument,
-    context: { params: Promise<T> }
-  ) => Promise<NextResponse>,
-  options?: { trackTiming?: boolean }
-) {
-  return async (request: NextRequest, context: { params: Promise<T> }) => {
-    const startTime = Date.now();
-    
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: APP_CONSTANTS.MESSAGES.ERROR.UNAUTHORIZED }, { status: 401 });
-    }
-    const userEmail = session.user.email;
-    
-    // Parse and validate document ID
-    const params = await context.params;
-    const documentId = RequestParser.parseDocumentId(params.id);
-    if (!documentId) {
-      return ApiErrors.badRequest('Invalid document ID');
-    }
-
-    // Retrieve document from database
-    const document = await documentDb.findById(documentId);
-    if (!document) {
-      return ApiErrors.notFound('Document');
-    }
-
-    // Check ownership
-    if (!isDocumentOwner(document, userEmail)) {
-      return ApiErrors.forbidden();
-    }
-
-    // Call the actual handler with the document
-    const response = await handler(request, userEmail, document, context);
-    
-    // Add timing header if tracking is enabled (default: true)
-    if (options?.trackTiming !== false) {
-      response.headers.set('X-Processing-Time', `${Date.now() - startTime}ms`);
-    }
-    
-    return response;
-  };
-}
 
 /**
  * Simple API response structure
