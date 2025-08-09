@@ -21,78 +21,93 @@ import {
 import { Input } from '@/components/ui/input';
 import { ArrowUpDown, Filter, Lightbulb, Search, ThumbsUp, Clock, CheckCircle2 } from 'lucide-react';
 
-// Mock data for submissions
-const mockSubmissions = [
-  {
-    id: '1',
-    name: 'Sarah Johnson',
-    department: 'Van Life',
-    location: 'Warehouse - Dallas',
-    category: 'Efficiency',
-    description: 'Implement automated sorting system for incoming packages to reduce manual labor by 40%',
-    status: 'Under Review',
-    votes: 12,
-    submittedAt: '2025-08-05T10:30:00Z',
-  },
-  {
-    id: '2',
-    name: 'Mike Chen',
-    department: 'Transportation',
-    location: 'Headquarters - Austin',
-    category: 'Safety',
-    description: 'Install blind spot cameras on all delivery vehicles to prevent accidents',
-    status: 'In Progress',
-    votes: 28,
-    submittedAt: '2025-08-04T14:15:00Z',
-  },
-  {
-    id: '3',
-    name: 'Emily Rodriguez',
-    department: 'Customer Service',
-    location: 'Office - New York',
-    category: 'Cost Savings',
-    description: 'Create AI chatbot for common customer inquiries to reduce call center load',
-    status: 'Implemented',
-    votes: 45,
-    submittedAt: '2025-08-03T09:45:00Z',
-  },
-  {
-    id: '4',
-    name: 'James Wilson',
-    department: 'Fulfillment',
-    location: 'Warehouse - Houston',
-    category: 'Quality',
-    description: 'Double-check system for high-value orders to reduce shipping errors',
-    status: 'Under Review',
-    votes: 8,
-    submittedAt: '2025-08-02T16:20:00Z',
-  },
-  {
-    id: '5',
-    name: 'Lisa Park',
-    department: 'Engineering',
-    location: 'Headquarters - Austin',
-    category: 'Efficiency',
-    description: 'Develop mobile app for drivers to optimize delivery routes in real-time',
-    status: 'In Progress',
-    votes: 35,
-    submittedAt: '2025-08-01T11:00:00Z',
-  },
-];
+// API Types
+interface PainPoint {
+  id: number;
+  title: string;
+  description: string;
+  category: 'Safety' | 'Efficiency' | 'Cost Savings' | 'Quality' | 'Other';
+  submitted_by: string;
+  department?: string;
+  location?: string;
+  status: 'pending' | 'under_review' | 'in_progress' | 'completed' | 'rejected';
+  upvotes: number;
+  downvotes: number;
+  created_at: string;
+  updated_at: string;
+}
 
-const statusConfig = {
-  'Under Review': { color: 'secondary', icon: Clock },
-  'In Progress': { color: 'default', icon: ArrowUpDown },
-  'Implemented': { color: 'success', icon: CheckCircle2 },
+// API fetch function
+const fetchPainPoints = async (): Promise<PainPoint[]> => {
+  try {
+    const response = await fetch('/api/pain-points');
+    if (!response.ok) {
+      throw new Error('Failed to fetch pain points');
+    }
+    const result = await response.json();
+    return result.data || [];
+  } catch (error) {
+    console.error('Error fetching pain points:', error);
+    return [];
+  }
 };
 
+// Mock data removed - using real API data
+
+const statusConfig = {
+  'pending': { color: 'secondary', icon: Clock, label: 'Pending' },
+  'under_review': { color: 'secondary', icon: Clock, label: 'Under Review' },
+  'in_progress': { color: 'default', icon: ArrowUpDown, label: 'In Progress' },
+  'completed': { color: 'success', icon: CheckCircle2, label: 'Completed' },
+  'rejected': { color: 'destructive', icon: Clock, label: 'Rejected' },
+};
+
+// Helper function to extract name from email
+const getNameFromEmail = (email: string): string => {
+  const name = email.split('@')[0];
+  return name.split('.').map(part => 
+    part.charAt(0).toUpperCase() + part.slice(1)
+  ).join(' ');
+};
+
+// Helper function to convert API data to display format
+const convertPainPointToSubmission = (painPoint: PainPoint) => ({
+  id: painPoint.id.toString(),
+  name: getNameFromEmail(painPoint.submitted_by),
+  department: painPoint.department || 'Unknown',
+  location: painPoint.location || 'Unknown',
+  category: painPoint.category,
+  description: painPoint.description,
+  status: statusConfig[painPoint.status]?.label || painPoint.status,
+  votes: painPoint.upvotes + painPoint.downvotes,
+  submittedAt: painPoint.created_at,
+});
+
 export default function SubmissionsPage() {
-  const [submissions, setSubmissions] = useState(mockSubmissions);
-  const [filteredSubmissions, setFilteredSubmissions] = useState(mockSubmissions);
+  const [painPoints, setPainPoints] = useState<PainPoint[]>([]);
+  const [submissions, setSubmissions] = useState<any[]>([]);
+  const [filteredSubmissions, setFilteredSubmissions] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
   const [votedIdeas, setVotedIdeas] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+
+  // Fetch pain points data on component mount
+  useEffect(() => {
+    const loadPainPoints = async () => {
+      console.log('Loading pain points...');
+      setLoading(true);
+      const data = await fetchPainPoints();
+      console.log('Fetched pain points:', data);
+      setPainPoints(data);
+      const converted = data.map(convertPainPointToSubmission);
+      console.log('Converted submissions:', converted);
+      setSubmissions(converted);
+      setLoading(false);
+    };
+    loadPainPoints();
+  }, []);
 
   // Filter and sort submissions
   useEffect(() => {
@@ -223,10 +238,23 @@ export default function SubmissionsPage() {
           Showing {filteredSubmissions.length} of {submissions.length} submissions
         </p>
 
+        {/* Loading State */}
+        {loading && (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading pain points...</p>
+          </div>
+        )}
+
         {/* Submissions Grid */}
-        <div className="grid gap-4">
-          {filteredSubmissions.map((submission) => {
-            const StatusIcon = statusConfig[submission.status as keyof typeof statusConfig].icon;
+        {!loading && (
+          <div className="grid gap-4">
+            {filteredSubmissions.map((submission) => {
+              // Find the matching pain point to get real status
+              const painPoint = painPoints.find(p => p.id.toString() === submission.id);
+              const statusKey = painPoint?.status || 'pending';
+              const statusInfo = statusConfig[statusKey];
+              const StatusIcon = statusInfo?.icon || Clock;
             return (
               <Card key={submission.id} className="hover:shadow-lg transition-shadow">
                 <CardHeader>
@@ -238,11 +266,11 @@ export default function SubmissionsPage() {
                       </CardDescription>
                     </div>
                     <Badge 
-                      variant={statusConfig[submission.status as keyof typeof statusConfig].color as any}
+                      variant={statusInfo?.color as any}
                       className="flex items-center gap-1"
                     >
                       <StatusIcon className="h-3 w-3" />
-                      {submission.status}
+                      {statusInfo?.label || statusKey}
                     </Badge>
                   </div>
                 </CardHeader>
@@ -274,9 +302,10 @@ export default function SubmissionsPage() {
             );
           })}
         </div>
+        )}
 
         {/* Empty State */}
-        {filteredSubmissions.length === 0 && (
+        {!loading && filteredSubmissions.length === 0 && (
           <div className="text-center py-12">
             <Lightbulb className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">No submissions found</h3>
@@ -288,7 +317,7 @@ export default function SubmissionsPage() {
         )}
 
         {/* Submit Idea CTA */}
-        {filteredSubmissions.length > 0 && (
+        {!loading && filteredSubmissions.length > 0 && (
           <div className="mt-8 text-center">
             <Link href="/ideas">
               <Button size="lg" className="gap-2">
