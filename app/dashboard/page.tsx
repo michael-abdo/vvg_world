@@ -1,6 +1,4 @@
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth-options";
-import { redirect } from "next/navigation";
+import { verifySession } from "@/lib/dal";
 import DashboardClient from "./dashboard-client";
 import type { Metadata } from 'next';
 
@@ -10,11 +8,8 @@ export const metadata: Metadata = {
 };
 
 export default async function Dashboard() {
-  const session = await getServerSession(authOptions);
+  // Single authentication check using DAL - industry standard 2025
+  const session = await verifySession();
   
-  if (!session) {
-    redirect("/${PROJECT_NAME}/sign-in");
-  }
-
   return <DashboardClient />;
 }
