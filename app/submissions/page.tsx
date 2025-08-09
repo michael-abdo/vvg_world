@@ -52,6 +52,32 @@ const fetchPainPoints = async (): Promise<PainPoint[]> => {
   }
 };
 
+// API voting function
+const voteOnPainPoint = async (id: number, voteType: 'up' | 'down'): Promise<PainPoint | null> => {
+  try {
+    const response = await fetch(`/api/pain-points/${id}/vote`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        vote_type: voteType,
+      }),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to vote');
+    }
+    
+    const result = await response.json();
+    return result.data;
+  } catch (error) {
+    console.error('Error voting:', error);
+    throw error;
+  }
+};
+
 // Mock data removed - using real API data
 
 const statusConfig = {
@@ -92,6 +118,7 @@ export default function SubmissionsPage() {
   const [sortBy, setSortBy] = useState('newest');
   const [votedIdeas, setVotedIdeas] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [voting, setVoting] = useState<Set<string>>(new Set());
 
   // Fetch pain points data on component mount
   useEffect(() => {
@@ -145,37 +172,74 @@ export default function SubmissionsPage() {
     setFilteredSubmissions(filtered);
   }, [submissions, searchTerm, categoryFilter, sortBy]);
 
-  const handleVote = (id: string) => {
+  const handleVote = async (id: string) => {
     console.log('Vote clicked for id:', id);
-    console.log('Current voted ideas:', Array.from(votedIdeas));
     
-    if (votedIdeas.has(id)) {
-      // Unvote
-      console.log('Unvoting id:', id);
-      setVotedIdeas((prev) => {
+    // Prevent multiple votes on same item
+    if (voting.has(id)) {
+      console.log('Already voting on id:', id);
+      return;
+    }
+    
+    // Check if already voted (toggle behavior)
+    const alreadyVoted = votedIdeas.has(id);
+    const voteType = alreadyVoted ? 'down' : 'up'; // If already voted, this is an "unvote" (down vote)
+    
+    // Set voting state
+    setVoting(prev => new Set(prev).add(id));
+    
+    try {
+      console.log(`${alreadyVoted ? 'Unvoting' : 'Voting'} for id: ${id} with type: ${voteType}`);
+      
+      // Try to vote via API
+      const updatedPainPoint = await voteOnPainPoint(parseInt(id), voteType);
+      
+      if (updatedPainPoint) {
+        console.log('Vote successful, updated pain point:', updatedPainPoint);
+        
+        // Update the pain points data with new vote counts
+        setPainPoints(prev => 
+          prev.map(p => p.id === updatedPainPoint.id ? updatedPainPoint : p)
+        );
+        
+        // Update submissions display data
+        setSubmissions(prev =>
+          prev.map(sub =>
+            sub.id === id 
+              ? { ...sub, votes: updatedPainPoint.upvotes + updatedPainPoint.downvotes }
+              : sub
+          )
+        );
+        
+        // Toggle voted state
+        setVotedIdeas(prev => {
+          const newSet = new Set(prev);
+          if (alreadyVoted) {
+            newSet.delete(id);
+          } else {
+            newSet.add(id);
+          }
+          return newSet;
+        });
+        
+        console.log('Vote completed successfully');
+      }
+    } catch (error: any) {
+      console.error('Voting failed:', error);
+      
+      // Show user-friendly message
+      if (error.message.includes('Authentication required')) {
+        alert('Please sign in to vote on pain points. Voting requires authentication.');
+      } else {
+        alert('Failed to vote. Please try again.');
+      }
+    } finally {
+      // Clear voting state
+      setVoting(prev => {
         const newSet = new Set(prev);
         newSet.delete(id);
-        console.log('New voted ideas after unvote:', Array.from(newSet));
         return newSet;
       });
-      setSubmissions((prev) =>
-        prev.map((sub) =>
-          sub.id === id ? { ...sub, votes: sub.votes - 1 } : sub
-        )
-      );
-    } else {
-      // Vote
-      console.log('Voting for id:', id);
-      setVotedIdeas((prev) => {
-        const newSet = new Set(prev).add(id);
-        console.log('New voted ideas after vote:', Array.from(newSet));
-        return newSet;
-      });
-      setSubmissions((prev) =>
-        prev.map((sub) =>
-          sub.id === id ? { ...sub, votes: sub.votes + 1 } : sub
-        )
-      );
     }
   };
 
@@ -285,15 +349,20 @@ export default function SubmissionsPage() {
                     </div>
                     <button
                       onClick={() => handleVote(submission.id)}
+                      disabled={voting.has(submission.id)}
                       className={`inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-9 rounded-md px-3 ${
                         votedIdeas.has(submission.id) 
                           ? "bg-green-600 hover:bg-green-700 text-white border border-green-600" 
                           : "border border-input bg-background hover:bg-accent hover:text-accent-foreground"
                       }`}
                     >
-                      <ThumbsUp className={`h-4 w-4 ${
-                        votedIdeas.has(submission.id) ? "fill-white" : ""
-                      }`} />
+                      {voting.has(submission.id) ? (
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                      ) : (
+                        <ThumbsUp className={`h-4 w-4 ${
+                          votedIdeas.has(submission.id) ? "fill-white" : ""
+                        }`} />
+                      )}
                       {submission.votes}
                     </button>
                   </div>
