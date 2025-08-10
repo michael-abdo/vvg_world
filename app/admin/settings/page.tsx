@@ -16,6 +16,11 @@ import { useRoutingRules } from '@/lib/hooks/useRoutingRules';
 import { useAIRules } from '@/lib/hooks/useAIRules';
 import { useAITriage } from '@/lib/hooks/useAITriage';
 import { useToast } from '@/components/ui/use-toast';
+import { EditRoutingRuleDialog } from '@/components/forms/EditRoutingRuleDialog';
+import { CategoryMultiSelect } from '@/components/forms/CategoryMultiSelect';
+import { DepartmentMultiSelect } from '@/components/forms/DepartmentMultiSelect';
+import { MultiSelectPills } from '@/components/ui/multi-select-pills';
+import { RoutingRule, UpdateRoutingRuleRequest } from '@/lib/types/data-pipeline';
 
 // Mock data
 const departments = [
@@ -80,13 +85,15 @@ export default function SettingsPage() {
   const [selectedTab, setSelectedTab] = useState('routing');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createAIRuleDialogOpen, setCreateAIRuleDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingRule, setEditingRule] = useState<RoutingRule | null>(null);
   const { toast } = useToast();
   
   // Form state for creating new routing rule
   const [newRule, setNewRule] = useState({
     name: '',
-    category: 'none',
-    department: 'none',
+    category: [] as string[],
+    department: [] as string[],
     stakeholders: '',
     priority: 'medium',
     autoRoute: true
@@ -111,6 +118,7 @@ export default function SettingsPage() {
     toggleRule,
     deleteRule,
     createRule,
+    updateRule,
     creating: creatingRule,
     updating: updatingRule,
     deleting: deletingRule
@@ -149,6 +157,24 @@ export default function SettingsPage() {
       return;
     }
     
+    if (newRule.category.length === 0) {
+      toast({
+        title: "Validation Error",
+        description: "Please select at least one category",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (newRule.department.length === 0) {
+      toast({
+        title: "Validation Error",
+        description: "Please select at least one department",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     if (!newRule.stakeholders.trim()) {
       toast({
         title: "Validation Error",
@@ -180,8 +206,8 @@ export default function SettingsPage() {
     try {
       const result = await createRule({
         name: newRule.name,
-        category: newRule.category === 'none' ? 'General' : newRule.category || 'General',
-        department: newRule.department === 'all' ? 'All' : (newRule.department === 'none' ? 'General' : newRule.department || 'General'),
+        category: newRule.category,
+        department: newRule.department,
         stakeholders: stakeholderEmails,
         priority: newRule.priority as 'low' | 'medium' | 'high' | 'critical',
         autoRoute: newRule.autoRoute
@@ -197,8 +223,8 @@ export default function SettingsPage() {
         // Reset form and close dialog
         setNewRule({
           name: '',
-          category: 'none',
-          department: 'none',
+          category: [],
+          department: [],
           stakeholders: '',
           priority: 'medium',
           autoRoute: true
@@ -301,6 +327,46 @@ export default function SettingsPage() {
     }
   };
 
+  // Handle edit routing rule
+  const handleEditRule = async (updates: UpdateRoutingRuleRequest) => {
+    try {
+      const result = await updateRule(updates.id, updates);
+      
+      if (result) {
+        // Show success toast
+        toast({
+          title: "Success",
+          description: `Routing rule "${result.name}" updated successfully.`,
+        });
+        
+        // Close dialog and clear editing state
+        setEditDialogOpen(false);
+        setEditingRule(null);
+      } else {
+        // Show error toast
+        toast({
+          title: "Error",
+          description: "Failed to update routing rule. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      // Show error toast
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      });
+      console.error('Failed to update routing rule:', error);
+    }
+  };
+
+  // Handle edit button click
+  const handleEditButtonClick = (rule: RoutingRule) => {
+    setEditingRule(rule);
+    setEditDialogOpen(true);
+  };
+
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
@@ -349,39 +415,22 @@ export default function SettingsPage() {
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <Label htmlFor="category">Category</Label>
-                        <Select 
-                          value={newRule.category} 
-                          onValueChange={(value) => setNewRule({...newRule, category: value})}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select category" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">None</SelectItem>
-                            {categories.map(cat => (
-                              <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Label>Categories</Label>
+                        <CategoryMultiSelect
+                          selected={newRule.category}
+                          onChange={(selected) => setNewRule({...newRule, category: selected})}
+                          disabled={creatingRule}
+                          placeholder="Select categories..."
+                        />
                       </div>
                       <div>
-                        <Label htmlFor="department">Department</Label>
-                        <Select 
-                          value={newRule.department}
-                          onValueChange={(value) => setNewRule({...newRule, department: value})}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select department" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">None</SelectItem>
-                            <SelectItem value="all">All Departments</SelectItem>
-                            {departments.filter(d => !d.parent).map(dept => (
-                              <SelectItem key={dept.id} value={dept.name}>{dept.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Label>Departments</Label>
+                        <DepartmentMultiSelect
+                          selected={newRule.department}
+                          onChange={(selected) => setNewRule({...newRule, department: selected})}
+                          disabled={creatingRule}
+                          placeholder="Select departments..."
+                        />
                       </div>
                     </div>
                     <div>
@@ -464,10 +513,24 @@ export default function SettingsPage() {
                             <Badge className="bg-green-100 text-green-800">Active</Badge>
                           )}
                         </div>
-                        <div className="space-y-1 text-sm text-gray-600">
+                        <div className="space-y-2 text-sm text-gray-600">
                           <div className="flex items-center gap-2">
                             <GitBranch className="h-4 w-4" />
-                            <span>Category: {rule.category} • Department: {rule.department}</span>
+                            <span>Categories:</span>
+                            <MultiSelectPills
+                              items={rule.category.map(cat => ({ value: cat, label: cat }))}
+                              onRemove={() => {}} // Read-only display
+                              className="gap-1"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <GitBranch className="h-4 w-4" />
+                            <span>Departments:</span>
+                            <MultiSelectPills
+                              items={rule.department.map(dept => ({ value: dept, label: dept }))}
+                              onRemove={() => {}} // Read-only display
+                              className="gap-1"
+                            />
                           </div>
                           <div className="flex items-center gap-2">
                             <Mail className="h-4 w-4" />
@@ -495,7 +558,12 @@ export default function SettingsPage() {
                           }}
                           disabled={updatingRule}
                         />
-                        <Button size="sm" variant="outline" disabled={updatingRule}>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          disabled={updatingRule}
+                          onClick={() => handleEditButtonClick(rule)}
+                        >
                           <Edit className="h-4 w-4" />
                         </Button>
                         <Button 
@@ -895,6 +963,15 @@ export default function SettingsPage() {
         </TabsContent>
 
       </Tabs>
+
+      {/* Edit Routing Rule Dialog */}
+      <EditRoutingRuleDialog
+        rule={editingRule}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        onSubmit={handleEditRule}
+        loading={updatingRule}
+      />
     </div>
   );
 }

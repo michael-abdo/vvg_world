@@ -12,8 +12,8 @@ import { z } from 'zod';
 // Validation schemas
 const CreateRoutingRuleSchema = z.object({
   name: z.string().min(1, "Name is required").max(255),
-  category: z.string().min(1, "Category is required").max(100),
-  department: z.string().min(1, "Department is required").max(100),
+  category: z.array(z.string().max(100)).min(1, "At least one category is required"),
+  department: z.array(z.string().max(100)).min(1, "At least one department is required"),
   stakeholders: z.array(z.string().email("Invalid email format")).min(1, "At least one stakeholder email is required"),
   priority: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
   autoRoute: z.boolean().default(true),
@@ -25,8 +25,8 @@ function formatRoutingRule(row: RoutingRuleRow): RoutingRule {
   return {
     id: row.id,
     name: row.name,
-    category: row.category,
-    department: row.department,
+    category: typeof row.category === 'string' ? JSON.parse(row.category) : row.category,
+    department: typeof row.department === 'string' ? JSON.parse(row.department) : row.department,
     stakeholders: typeof row.stakeholders === 'string' ? JSON.parse(row.stakeholders) : row.stakeholders,
     priority: row.priority,
     autoRoute: row.auto_route,
@@ -148,8 +148,8 @@ export async function POST(request: NextRequest) {
 
     const result = await executeQuery({ query: insertQuery, values: [
       data.name,
-      data.category,
-      data.department,
+      JSON.stringify(data.category),
+      JSON.stringify(data.department),
       JSON.stringify(data.stakeholders),
       data.priority,
       data.autoRoute,

@@ -7,8 +7,8 @@ export type ActionType = 'escalate' | 'tag' | 'flag' | 'hold' | 'ignore' | 'rout
 export interface RoutingRule {
   id: number;
   name: string;
-  category: string;
-  department: string;
+  category: string[];
+  department: string[];
   stakeholders: string[];
   priority: PriorityLevel;
   autoRoute: boolean;
@@ -19,8 +19,8 @@ export interface RoutingRule {
 
 export interface CreateRoutingRuleRequest {
   name: string;
-  category: string;
-  department: string;
+  category: string[];
+  department: string[];
   stakeholders: string[];
   priority: PriorityLevel;
   autoRoute?: boolean;
@@ -218,8 +218,8 @@ export type DepartmentType = 'All' | 'Engineering' | 'Product' | 'Marketing' | '
 export interface RoutingRuleRow {
   id: number;
   name: string;
-  category: string;
-  department: string;
+  category: string; // JSON string
+  department: string; // JSON string  
   stakeholders: string; // JSON string
   priority: PriorityLevel;
   auto_route: boolean;

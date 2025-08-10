@@ -12,8 +12,8 @@ import { z } from 'zod';
 // Validation schema
 const UpdateRoutingRuleSchema = z.object({
   name: z.string().min(1).max(255).optional(),
-  category: z.string().min(1).max(100).optional(),
-  department: z.string().min(1).max(100).optional(),
+  category: z.array(z.string().max(100)).min(1).optional(),
+  department: z.array(z.string().max(100)).min(1).optional(),
   stakeholders: z.array(z.string().email()).min(1).optional(),
   priority: z.enum(['low', 'medium', 'high', 'critical']).optional(),
   autoRoute: z.boolean().optional(),
@@ -25,8 +25,8 @@ function formatRoutingRule(row: RoutingRuleRow): RoutingRule {
   return {
     id: row.id,
     name: row.name,
-    category: row.category,
-    department: row.department,
+    category: typeof row.category === 'string' ? JSON.parse(row.category) : row.category,
+    department: typeof row.department === 'string' ? JSON.parse(row.department) : row.department,
     stakeholders: typeof row.stakeholders === 'string' ? JSON.parse(row.stakeholders) : row.stakeholders,
     priority: row.priority,
     autoRoute: row.auto_route,
@@ -125,6 +125,14 @@ export async function PUT(
             break;
           case 'stakeholders':
             updateFields.push('stakeholders = ?');
+            updateValues.push(JSON.stringify(value));
+            break;
+          case 'category':
+            updateFields.push('category = ?');
+            updateValues.push(JSON.stringify(value));
+            break;
+          case 'department':
+            updateFields.push('department = ?');
             updateValues.push(JSON.stringify(value));
             break;
           default:
