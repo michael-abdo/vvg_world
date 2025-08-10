@@ -33,8 +33,6 @@ export async function POST(request: NextRequest) {
         query: insertVoteQuery,
         values: [painPointIdNum, userEmail, voteType]
       });
-
-      console.log(`Added ${voteType} vote for pain point ${painPointId} by ${userEmail}`);
       
     } else if (action === 'remove') {
       // Remove vote
@@ -47,8 +45,6 @@ export async function POST(request: NextRequest) {
         query: deleteVoteQuery,
         values: [painPointIdNum, userEmail]
       });
-
-      console.log(`Removed vote for pain point ${painPointId} by ${userEmail}`);
     }
 
     // Update cached vote counts in pain_points table

@@ -16,9 +16,13 @@ interface PainPoint {
   updated_at: string;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // Query pain_points table with vote count aggregation
+    // Extract user email from query params or use default
+    const { searchParams } = new URL(request.url);
+    const userEmail = searchParams.get('userEmail') || 'michael.abdo@vvg.com';
+    
+    // Query pain_points table with vote count aggregation and user-specific vote status
     const query = `
       SELECT 
         p.id,
@@ -34,18 +38,20 @@ export async function GET() {
         p.created_at,
         p.updated_at,
         COALESCE(SUM(CASE WHEN v.vote_type = 'up' THEN 1 ELSE 0 END), 0) as actual_upvotes,
-        COALESCE(SUM(CASE WHEN v.vote_type = 'down' THEN 1 ELSE 0 END), 0) as actual_downvotes
+        COALESCE(SUM(CASE WHEN v.vote_type = 'down' THEN 1 ELSE 0 END), 0) as actual_downvotes,
+        CASE WHEN uv.id IS NOT NULL THEN 1 ELSE 0 END as user_has_voted
       FROM pain_points p
       LEFT JOIN pain_point_votes v ON p.id = v.pain_point_id
+      LEFT JOIN pain_point_votes uv ON p.id = uv.pain_point_id AND uv.user_email = ?
       GROUP BY p.id, p.title, p.description, p.category, p.submitted_by, 
                p.department, p.location, p.status, p.upvotes, p.downvotes, 
-               p.created_at, p.updated_at
+               p.created_at, p.updated_at, uv.id
       ORDER BY p.created_at DESC
     `;
 
     const results: PainPoint[] = await executeQuery({
       query: query,
-      values: []
+      values: [userEmail]
     });
 
     // Transform the database results to match frontend expectations
@@ -67,10 +73,9 @@ export async function GET() {
         status: transformStatus(painPoint.status),
         votes: Math.max(painPoint.actual_upvotes || painPoint.upvotes, 0),
         submittedAt: painPoint.created_at,
+        userHasVoted: Boolean(painPoint.user_has_voted),
       };
     });
-
-    console.log(`Retrieved ${submissions.length} pain points from database`);
 
     return NextResponse.json({
       success: true,

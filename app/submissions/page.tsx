@@ -43,19 +43,26 @@ export default function SubmissionsPage() {
     try {
       setLoading(true);
       setError(null);
-      console.log('Fetching submissions from API...');
-      
-      const response = await fetch('/api/submissions');
+      const userEmail = 'michael.abdo@vvg.com'; // Hardcoded for now, matches voting logic
+      const response = await fetch(`/api/submissions?userEmail=${encodeURIComponent(userEmail)}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
       const data = await response.json();
-      console.log('API response:', data);
       
       if (data.success) {
-        setSubmissions(data.submissions || []);
-        console.log(`Loaded ${data.submissions?.length || 0} submissions from database`);
+        const submissions = data.submissions || [];
+        setSubmissions(submissions);
+        
+        // Initialize votedIdeas Set from userHasVoted fields in API response
+        const votedSubmissionIds = new Set<string>(
+          submissions
+            .filter((submission: any) => submission.userHasVoted)
+            .map((submission: any) => submission.id)
+        );
+        setVotedIdeas(votedSubmissionIds);
+        
       } else {
         throw new Error(data.error || 'Failed to fetch submissions');
       }
@@ -111,9 +118,6 @@ export default function SubmissionsPage() {
   }, [submissions, searchTerm, categoryFilter, sortBy]);
 
   const handleVote = async (id: string) => {
-    console.log('Vote clicked for id:', id);
-    console.log('Current voted ideas:', Array.from(votedIdeas));
-    
     const isVoted = votedIdeas.has(id);
     const action = isVoted ? 'remove' : 'add';
     
@@ -121,11 +125,9 @@ export default function SubmissionsPage() {
       // Optimistic UI update
       if (isVoted) {
         // Unvote
-        console.log('Unvoting id:', id);
         setVotedIdeas((prev) => {
           const newSet = new Set(prev);
           newSet.delete(id);
-          console.log('New voted ideas after unvote:', Array.from(newSet));
           return newSet;
         });
         setSubmissions((prev) =>
@@ -135,12 +137,7 @@ export default function SubmissionsPage() {
         );
       } else {
         // Vote
-        console.log('Voting for id:', id);
-        setVotedIdeas((prev) => {
-          const newSet = new Set(prev).add(id);
-          console.log('New voted ideas after vote:', Array.from(newSet));
-          return newSet;
-        });
+        setVotedIdeas((prev) => new Set(prev).add(id));
         setSubmissions((prev) =>
           prev.map((sub) =>
             sub.id === id ? { ...sub, votes: sub.votes + 1 } : sub
@@ -163,11 +160,9 @@ export default function SubmissionsPage() {
       });
 
       const result = await response.json();
-      console.log('Vote API response:', result);
 
       if (!result.success) {
         // Revert optimistic update on failure
-        console.error('Vote failed, reverting changes');
         if (isVoted) {
           setVotedIdeas((prev) => new Set(prev).add(id));
           setSubmissions((prev) =>
