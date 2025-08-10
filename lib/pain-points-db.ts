@@ -214,6 +214,227 @@ export const painPointsDb = {
     return user;
   },
 
+  // Analytics Interfaces
+  async getSubmissionTrends(months: number = 6): Promise<{
+    month: string;
+    submissions: number;
+    approved: number;
+    rejected: number;
+    pending: number;
+  }[]> {
+    // Get all pain points from recent months
+    const allPainPoints = await executeQuery<{
+      created_at: string;
+      status: string;
+    }[]>({
+      query: `
+        SELECT created_at, status
+        FROM pain_points 
+        WHERE created_at >= DATE_SUB(NOW(), INTERVAL ? MONTH)
+        ORDER BY created_at
+      `,
+      values: [months]
+    });
+
+    // Process data in JavaScript to avoid SQL GROUP BY issues
+    const monthMap: Record<string, {
+      month: string;
+      submissions: number;
+      approved: number;
+      rejected: number;
+      pending: number;
+    }> = {};
+
+    allPainPoints.forEach(point => {
+      const date = new Date(point.created_at);
+      const monthKey = date.toLocaleDateString('en-US', { month: 'short' });
+      
+      if (!monthMap[monthKey]) {
+        monthMap[monthKey] = {
+          month: monthKey,
+          submissions: 0,
+          approved: 0,
+          rejected: 0,
+          pending: 0
+        };
+      }
+      
+      monthMap[monthKey].submissions++;
+      
+      if (point.status === 'completed') {
+        monthMap[monthKey].approved++;
+      } else if (point.status === 'rejected') {
+        monthMap[monthKey].rejected++;
+      } else if (point.status === 'pending' || point.status === 'under_review') {
+        monthMap[monthKey].pending++;
+      }
+    });
+
+    return Object.values(monthMap);
+  },
+
+  async getDepartmentAnalytics(): Promise<{
+    department: string;
+    ideas: number;
+    implemented: number;
+    successRate: number;
+  }[]> {
+    // Get all pain points with departments
+    const allPainPoints = await executeQuery<{
+      department: string;
+      status: string;
+    }[]>({
+      query: `
+        SELECT department, status
+        FROM pain_points 
+        WHERE department IS NOT NULL AND department != ''
+      `
+    });
+
+    // Process data in JavaScript
+    const departmentMap: Record<string, {
+      department: string;
+      ideas: number;
+      implemented: number;
+      successRate: number;
+    }> = {};
+
+    allPainPoints.forEach(point => {
+      const dept = point.department || 'Unknown';
+      
+      if (!departmentMap[dept]) {
+        departmentMap[dept] = {
+          department: dept,
+          ideas: 0,
+          implemented: 0,
+          successRate: 0
+        };
+      }
+      
+      departmentMap[dept].ideas++;
+      
+      if (point.status === 'completed') {
+        departmentMap[dept].implemented++;
+      }
+    });
+
+    // Calculate success rates
+    Object.values(departmentMap).forEach(dept => {
+      dept.successRate = dept.ideas > 0 ? Math.round((dept.implemented / dept.ideas) * 100) : 0;
+    });
+
+    return Object.values(departmentMap).sort((a, b) => b.ideas - a.ideas);
+  },
+
+  async getSuccessRateData(): Promise<{
+    quarter: string;
+    rate: number;
+    total: number;
+    implemented: number;
+  }[]> {
+    // Get all pain points from last 18 months
+    const allPainPoints = await executeQuery<{
+      created_at: string;
+      status: string;
+    }[]>({
+      query: `
+        SELECT created_at, status
+        FROM pain_points 
+        WHERE created_at >= DATE_SUB(NOW(), INTERVAL 18 MONTH)
+      `
+    });
+
+    // Process data in JavaScript
+    const quarterMap: Record<string, {
+      quarter: string;
+      rate: number;
+      total: number;
+      implemented: number;
+    }> = {};
+
+    allPainPoints.forEach(point => {
+      const date = new Date(point.created_at);
+      const year = date.getFullYear();
+      const quarter = Math.floor(date.getMonth() / 3) + 1;
+      const quarterKey = `Q${quarter} ${year}`;
+      
+      if (!quarterMap[quarterKey]) {
+        quarterMap[quarterKey] = {
+          quarter: quarterKey,
+          rate: 0,
+          total: 0,
+          implemented: 0
+        };
+      }
+      
+      quarterMap[quarterKey].total++;
+      
+      if (point.status === 'completed') {
+        quarterMap[quarterKey].implemented++;
+      }
+    });
+
+    // Calculate success rates
+    Object.values(quarterMap).forEach(q => {
+      q.rate = q.total > 0 ? Math.round((q.implemented / q.total) * 100) : 0;
+    });
+
+    // Sort by quarter chronologically
+    return Object.values(quarterMap).sort((a, b) => {
+      const [aQ, aY] = a.quarter.split(' ');
+      const [bQ, bY] = b.quarter.split(' ');
+      const aYear = parseInt(aY);
+      const bYear = parseInt(bY);
+      const aQtr = parseInt(aQ.substring(1));
+      const bQtr = parseInt(bQ.substring(1));
+      
+      if (aYear !== bYear) return aYear - bYear;
+      return aQtr - bQtr;
+    });
+  },
+
+  async getReportsKeyMetrics(): Promise<{
+    totalSubmissions: number;
+    successRate: number;
+    activeContributors: number;
+    implemented: number;
+  }> {
+    const [totalResult, successResult, contributorsResult, implementedResult] = await Promise.all([
+      executeQuery<{count: number}[]>({
+        query: 'SELECT COUNT(*) as count FROM pain_points'
+      }),
+      executeQuery<{total: number, completed: number}[]>({
+        query: `
+          SELECT 
+            COUNT(*) as total,
+            SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed
+          FROM pain_points
+        `
+      }),
+      executeQuery<{count: number}[]>({
+        query: `
+          SELECT COUNT(DISTINCT submitted_by) as count 
+          FROM pain_points 
+          WHERE created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+        `
+      }),
+      executeQuery<{count: number}[]>({
+        query: 'SELECT COUNT(*) as count FROM pain_points WHERE status = "completed"'
+      })
+    ]);
+
+    const total = totalResult[0].count;
+    const completed = successResult[0].completed;
+    const successRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+    return {
+      totalSubmissions: total,
+      successRate,
+      activeContributors: contributorsResult[0].count,
+      implemented: implementedResult[0].count
+    };
+  },
+
   // Analytics
   async getStats(): Promise<{
     totalPainPoints: number;

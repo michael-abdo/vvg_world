@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import type { ReportsData, ApiResponse } from '@/types/dashboard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -8,60 +9,97 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Calendar, Download, TrendingUp, Users, Target, Award } from 'lucide-react';
 
-// Mock data for charts
-const submissionTrends = [
-  { month: 'Jan', submissions: 45, approved: 32, rejected: 8, pending: 5 },
-  { month: 'Feb', submissions: 52, approved: 38, rejected: 9, pending: 5 },
-  { month: 'Mar', submissions: 48, approved: 35, rejected: 7, pending: 6 },
-  { month: 'Apr', submissions: 61, approved: 44, rejected: 10, pending: 7 },
-  { month: 'May', submissions: 55, approved: 40, rejected: 9, pending: 6 },
-  { month: 'Jun', submissions: 67, approved: 48, rejected: 12, pending: 7 },
-  { month: 'Jul', submissions: 72, approved: 52, rejected: 13, pending: 7 },
-  { month: 'Aug', submissions: 58, approved: 42, rejected: 10, pending: 6 }
-];
-
-const departmentData = [
-  { department: 'Engineering', ideas: 89, implemented: 65, successRate: 73 },
-  { department: 'Product', ideas: 67, implemented: 45, successRate: 67 },
-  { department: 'HR', ideas: 34, implemented: 28, successRate: 82 },
-  { department: 'Marketing', ideas: 45, implemented: 32, successRate: 71 },
-  { department: 'Sales', ideas: 23, implemented: 18, successRate: 78 },
-  { department: 'Operations', ideas: 56, implemented: 41, successRate: 73 }
-];
-
-const successRateData = [
-  { quarter: 'Q1 2023', rate: 68, total: 145, implemented: 99 },
-  { quarter: 'Q2 2023', rate: 71, total: 167, implemented: 119 },
-  { quarter: 'Q3 2023', rate: 74, total: 189, implemented: 140 },
-  { quarter: 'Q4 2023', rate: 76, total: 201, implemented: 153 },
-  { quarter: 'Q1 2024', rate: 78, total: 223, implemented: 174 },
-  { quarter: 'Q2 2024', rate: 75, total: 234, implemented: 176 }
-];
-
+// Static insights data (could be dynamic in future)
 const insights = [
   {
     title: "Peak Submission Period",
-    description: "July shows the highest submission volume with 72 ideas",
+    description: "Active submission patterns indicate growing engagement",
     impact: "high",
-    recommendation: "Increase reviewer capacity during summer months"
+    recommendation: "Monitor capacity and response times"
   },
   {
-    title: "HR Department Excellence",
-    description: "HR maintains the highest implementation success rate at 82%",
+    title: "Department Performance",
+    description: "Multiple departments actively participating in improvement initiatives",
     impact: "medium", 
-    recommendation: "Share HR's best practices with other departments"
+    recommendation: "Share best practices across all departments"
   },
   {
-    title: "Growing Engagement",
-    description: "25% increase in submissions compared to last quarter",
+    title: "System Adoption",
+    description: "Pain points platform seeing consistent usage",
     impact: "high",
-    recommendation: "Prepare for increased review workload"
+    recommendation: "Continue promoting the system to increase participation"
   }
 ];
 
 export default function ReportsPage() {
   const [dateRange, setDateRange] = useState('6m');
   const [selectedDepartment, setSelectedDepartment] = useState('all');
+  
+  // Real data state
+  const [reportsData, setReportsData] = useState<ReportsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch reports data from API
+  const fetchReportsData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await fetch('/api/admin/reports');
+      const result: ApiResponse<ReportsData> = await response.json();
+      
+      if (result.success && result.data) {
+        setReportsData(result.data);
+      } else {
+        setError(result.error || 'Failed to fetch reports data');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch data on component mount
+  useEffect(() => {
+    fetchReportsData();
+  }, []);
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="space-y-6 p-6">
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 ml-4">Loading reports data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="space-y-6 p-6">
+        <div className="text-center py-12">
+          <p className="text-red-600 mb-4">Error loading reports: {error}</p>
+          <Button onClick={fetchReportsData}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Show empty state if no data
+  if (!reportsData) {
+    return (
+      <div className="space-y-6 p-6">
+        <div className="text-center py-12">
+          <p className="text-gray-600">No reports data available</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 p-6">
@@ -97,8 +135,8 @@ export default function ReportsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Submissions</p>
-                <p className="text-3xl font-bold">438</p>
-                <p className="text-sm text-green-600">+12.3% from last period</p>
+                <p className="text-3xl font-bold">{reportsData.keyMetrics.totalSubmissions}</p>
+                <p className="text-sm text-gray-500">All time</p>
               </div>
               <TrendingUp className="h-8 w-8 text-blue-600" />
             </div>
@@ -110,8 +148,8 @@ export default function ReportsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Success Rate</p>
-                <p className="text-3xl font-bold">75%</p>
-                <p className="text-sm text-green-600">+3.2% from last period</p>
+                <p className="text-3xl font-bold">{reportsData.keyMetrics.successRate}%</p>
+                <p className="text-sm text-gray-500">Overall completion rate</p>
               </div>
               <Target className="h-8 w-8 text-green-600" />
             </div>
@@ -123,8 +161,8 @@ export default function ReportsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Active Contributors</p>
-                <p className="text-3xl font-bold">156</p>
-                <p className="text-sm text-green-600">+8.7% from last period</p>
+                <p className="text-3xl font-bold">{reportsData.keyMetrics.activeContributors}</p>
+                <p className="text-sm text-gray-500">Last 6 months</p>
               </div>
               <Users className="h-8 w-8 text-purple-600" />
             </div>
@@ -136,8 +174,8 @@ export default function ReportsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Implemented</p>
-                <p className="text-3xl font-bold">329</p>
-                <p className="text-sm text-green-600">+15.4% from last period</p>
+                <p className="text-3xl font-bold">{reportsData.keyMetrics.implemented}</p>
+                <p className="text-sm text-gray-500">Completed ideas</p>
               </div>
               <Award className="h-8 w-8 text-yellow-600" />
             </div>
@@ -162,7 +200,7 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={400}>
-                <AreaChart data={submissionTrends}>
+                <AreaChart data={reportsData.submissionTrends}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="month" />
                   <YAxis />
@@ -186,7 +224,7 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={departmentData}>
+                <BarChart data={reportsData.departmentData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="department" />
                   <YAxis />
@@ -208,7 +246,7 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={400}>
-                <LineChart data={successRateData}>
+                <LineChart data={reportsData.successRateData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="quarter" />
                   <YAxis />
