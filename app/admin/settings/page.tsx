@@ -502,30 +502,22 @@ export default function SettingsPage() {
                           size="sm" 
                           variant="outline" 
                           disabled={deletingRule}
-                          onClick={() => {
-                            toast({
-                              title: "Delete Routing Rule",
-                              description: `Are you sure you want to delete "${rule.name}"? This action cannot be undone.`,
-                              action: {
-                                altText: "Delete",
-                                children: "Delete",
-                                onClick: async () => {
-                                  const success = await deleteRule(rule.id);
-                                  if (success) {
-                                    toast({
-                                      title: "Success",
-                                      description: `Routing rule "${rule.name}" deleted successfully.`,
-                                    });
-                                  } else {
-                                    toast({
-                                      title: "Error",
-                                      description: "Failed to delete routing rule.",
-                                      variant: "destructive",
-                                    });
-                                  }
-                                }
+                          onClick={async () => {
+                            if (confirm(`Are you sure you want to delete "${rule.name}"?`)) {
+                              const success = await deleteRule(rule.id);
+                              if (success) {
+                                toast({
+                                  title: "Success",
+                                  description: `Routing rule "${rule.name}" deleted successfully.`,
+                                });
+                              } else {
+                                toast({
+                                  title: "Error",
+                                  description: "Failed to delete routing rule.",
+                                  variant: "destructive",
+                                });
                               }
-                            });
+                            }
                           }}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -841,30 +833,22 @@ export default function SettingsPage() {
                           size="sm" 
                           variant="outline" 
                           disabled={deletingAIRule}
-                          onClick={() => {
-                            toast({
-                              title: "Delete AI Rule",
-                              description: `Are you sure you want to delete "${rule.name}"? This action cannot be undone.`,
-                              action: {
-                                altText: "Delete",
-                                children: "Delete",
-                                onClick: async () => {
-                                  const success = await deleteAIRule(rule.id);
-                                  if (success) {
-                                    toast({
-                                      title: "Success",
-                                      description: `AI rule "${rule.name}" deleted successfully.`,
-                                    });
-                                  } else {
-                                    toast({
-                                      title: "Error",
-                                      description: "Failed to delete AI rule.",
-                                      variant: "destructive",
-                                    });
-                                  }
-                                }
+                          onClick={async () => {
+                            if (confirm(`Are you sure you want to delete "${rule.name}"?`)) {
+                              const success = await deleteAIRule(rule.id);
+                              if (success) {
+                                toast({
+                                  title: "Success",
+                                  description: `AI rule "${rule.name}" deleted successfully.`,
+                                });
+                              } else {
+                                toast({
+                                  title: "Error",
+                                  description: "Failed to delete AI rule.",
+                                  variant: "destructive",
+                                });
                               }
-                            });
+                            }
                           }}
                         >
                           <Trash2 className="h-4 w-4" />
