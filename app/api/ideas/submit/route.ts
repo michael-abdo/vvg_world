@@ -60,6 +60,33 @@ export async function POST(request: NextRequest) {
       id: painPointId,
       ...validatedData
     });
+
+    // Trigger data pipeline routing for the new pain point
+    try {
+      const { routingEngine } = await import('@/lib/services/routing-engine');
+      
+      const painPointData = {
+        id: painPointId,
+        title: `Pain Point: ${validatedData.category}`,
+        description: validatedData.description,
+        category: validatedData.category,
+        submittedBy: `${validatedData.name.toLowerCase().replace(/\s+/g, '.')}@vvg.com`,
+        department: validatedData.department,
+        location: validatedData.location
+      };
+
+      // Process routing rules for this pain point
+      const routingResult = await routingEngine.executeRouting(painPointData);
+      
+      console.log('Pain point routing completed:', {
+        painPointId,
+        success: routingResult.success,
+        actionsTaken: routingResult.actionsTaken
+      });
+    } catch (routingError) {
+      // Don't fail the submission if routing fails
+      console.error('Pain point routing failed, but submission was successful:', routingError);
+    }
     
     return NextResponse.json({
       success: true,
