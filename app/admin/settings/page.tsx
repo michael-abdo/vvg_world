@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Plus, Edit, Trash2, Users, Mail, Shield, Settings2, GitBranch, Bot, ArrowRight, Zap } from 'lucide-react';
 import { useRoutingRules } from '@/lib/hooks/useRoutingRules';
 import { useAITriage } from '@/lib/hooks/useAITriage';
+import { useToast } from '@/components/ui/use-toast';
 
 // Mock data
 const departments = [
@@ -100,6 +101,18 @@ const aiRules = [
 
 export default function SettingsPage() {
   const [selectedTab, setSelectedTab] = useState('routing');
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const { toast } = useToast();
+  
+  // Form state for creating new routing rule
+  const [newRule, setNewRule] = useState({
+    name: '',
+    category: '',
+    department: '',
+    stakeholders: '',
+    priority: 'medium',
+    autoRoute: true
+  });
   
   // Data Pipeline hooks
   const { 
@@ -108,6 +121,7 @@ export default function SettingsPage() {
     error: routingRulesError,
     toggleRule,
     deleteRule,
+    createRule,
     creating: creatingRule,
     updating: updatingRule,
     deleting: deletingRule
@@ -120,6 +134,80 @@ export default function SettingsPage() {
     triggerTriage,
     triggering: triggeringTriage
   } = useAITriage();
+  
+  // Handle form submission
+  const handleCreateRule = async () => {
+    // Validate form
+    if (!newRule.name.trim()) {
+      alert('Please enter a rule name');
+      return;
+    }
+    
+    if (!newRule.stakeholders.trim()) {
+      alert('Please enter at least one stakeholder email');
+      return;
+    }
+    
+    // Parse stakeholders
+    const stakeholderEmails = newRule.stakeholders
+      .split(',')
+      .map(email => email.trim())
+      .filter(email => email.length > 0);
+    
+    // Validate emails
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    for (const email of stakeholderEmails) {
+      if (!emailRegex.test(email)) {
+        alert(`Invalid email: ${email}`);
+        return;
+      }
+    }
+    
+    try {
+      const result = await createRule({
+        name: newRule.name,
+        category: newRule.category || null,
+        department: newRule.department === 'all' ? null : newRule.department || null,
+        stakeholders: stakeholderEmails,
+        priority: newRule.priority as 'low' | 'medium' | 'high' | 'critical',
+        auto_route: newRule.autoRoute
+      });
+      
+      if (result) {
+        // Show success toast
+        toast({
+          title: "Success",
+          description: `Routing rule "${result.name}" created successfully.`,
+        });
+        
+        // Reset form and close dialog
+        setNewRule({
+          name: '',
+          category: '',
+          department: '',
+          stakeholders: '',
+          priority: 'medium',
+          autoRoute: true
+        });
+        setCreateDialogOpen(false);
+      } else {
+        // Show error toast
+        toast({
+          title: "Error",
+          description: "Failed to create routing rule. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      // Show error toast
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      });
+      console.error('Failed to create routing rule:', error);
+    }
+  };
 
   return (
     <div className="space-y-6 p-6">
@@ -145,7 +233,7 @@ export default function SettingsPage() {
                 <CardTitle>Data Pipeline & Routing Rules</CardTitle>
                 <CardDescription>Configure automatic routing to stakeholders based on categories and departments</CardDescription>
               </div>
-              <Dialog>
+              <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
                 <DialogTrigger asChild>
                   <Button>
                     <Plus className="h-4 w-4 mr-2" />
@@ -160,16 +248,25 @@ export default function SettingsPage() {
                   <div className="space-y-4">
                     <div>
                       <Label htmlFor="rule-name">Rule Name</Label>
-                      <Input id="rule-name" placeholder="e.g., Safety Critical Issues" />
+                      <Input 
+                        id="rule-name" 
+                        placeholder="e.g., Safety Critical Issues" 
+                        value={newRule.name}
+                        onChange={(e) => setNewRule({...newRule, name: e.target.value})}
+                      />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="category">Category</Label>
-                        <Select>
+                        <Select 
+                          value={newRule.category} 
+                          onValueChange={(value) => setNewRule({...newRule, category: value})}
+                        >
                           <SelectTrigger>
                             <SelectValue placeholder="Select category" />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="">None</SelectItem>
                             {categories.map(cat => (
                               <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
                             ))}
@@ -178,11 +275,15 @@ export default function SettingsPage() {
                       </div>
                       <div>
                         <Label htmlFor="department">Department</Label>
-                        <Select>
+                        <Select 
+                          value={newRule.department}
+                          onValueChange={(value) => setNewRule({...newRule, department: value})}
+                        >
                           <SelectTrigger>
                             <SelectValue placeholder="Select department" />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="">None</SelectItem>
                             <SelectItem value="all">All Departments</SelectItem>
                             {departments.filter(d => !d.parent).map(dept => (
                               <SelectItem key={dept.id} value={dept.name}>{dept.name}</SelectItem>
@@ -193,11 +294,19 @@ export default function SettingsPage() {
                     </div>
                     <div>
                       <Label htmlFor="stakeholders">Stakeholder Emails (comma-separated)</Label>
-                      <Input id="stakeholders" placeholder="safety@vvgtruck.com, compliance@vvgtruck.com" />
+                      <Input 
+                        id="stakeholders" 
+                        placeholder="safety@vvgtruck.com, compliance@vvgtruck.com" 
+                        value={newRule.stakeholders}
+                        onChange={(e) => setNewRule({...newRule, stakeholders: e.target.value})}
+                      />
                     </div>
                     <div>
                       <Label htmlFor="priority">Priority</Label>
-                      <Select>
+                      <Select 
+                        value={newRule.priority}
+                        onValueChange={(value) => setNewRule({...newRule, priority: value})}
+                      >
                         <SelectTrigger>
                           <SelectValue placeholder="Select priority" />
                         </SelectTrigger>
@@ -210,12 +319,27 @@ export default function SettingsPage() {
                       </Select>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <Switch id="auto-route" />
+                      <Switch 
+                        id="auto-route" 
+                        checked={newRule.autoRoute}
+                        onCheckedChange={(checked) => setNewRule({...newRule, autoRoute: checked})}
+                      />
                       <Label htmlFor="auto-route">Enable automatic routing</Label>
                     </div>
                     <div className="flex justify-end gap-2">
-                      <Button variant="outline">Cancel</Button>
-                      <Button>Create Rule</Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setCreateDialogOpen(false)}
+                        disabled={creatingRule}
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        onClick={handleCreateRule}
+                        disabled={creatingRule}
+                      >
+                        {creatingRule ? 'Creating...' : 'Create Rule'}
+                      </Button>
                     </div>
                   </div>
                 </DialogContent>
@@ -262,7 +386,21 @@ export default function SettingsPage() {
                       <div className="flex items-center gap-2">
                         <Switch 
                           checked={rule.active} 
-                          onCheckedChange={(active) => toggleRule(rule.id, active)}
+                          onCheckedChange={async (active) => {
+                            const result = await toggleRule(rule.id, active);
+                            if (result) {
+                              toast({
+                                title: "Success",
+                                description: `Routing rule "${rule.name}" ${active ? 'enabled' : 'disabled'}.`,
+                              });
+                            } else {
+                              toast({
+                                title: "Error",
+                                description: "Failed to update routing rule.",
+                                variant: "destructive",
+                              });
+                            }
+                          }}
                           disabled={updatingRule}
                         />
                         <Button size="sm" variant="outline" disabled={updatingRule}>
@@ -272,9 +410,21 @@ export default function SettingsPage() {
                           size="sm" 
                           variant="outline" 
                           disabled={deletingRule}
-                          onClick={() => {
+                          onClick={async () => {
                             if (confirm(`Are you sure you want to delete "${rule.name}"?`)) {
-                              deleteRule(rule.id);
+                              const success = await deleteRule(rule.id);
+                              if (success) {
+                                toast({
+                                  title: "Success",
+                                  description: `Routing rule "${rule.name}" deleted successfully.`,
+                                });
+                              } else {
+                                toast({
+                                  title: "Error",
+                                  description: "Failed to delete routing rule.",
+                                  variant: "destructive",
+                                });
+                              }
                             }
                           }}
                         >
@@ -337,7 +487,21 @@ export default function SettingsPage() {
                       />
                       <Button 
                         size="sm" 
-                        onClick={() => triggerTriage()}
+                        onClick={async () => {
+                          const result = await triggerTriage();
+                          if (result) {
+                            toast({
+                              title: "AI Triage Started",
+                              description: "The AI triage process has been triggered and is now running.",
+                            });
+                          } else {
+                            toast({
+                              title: "Error",
+                              description: "Failed to trigger AI triage. Please try again.",
+                              variant: "destructive",
+                            });
+                          }
+                        }}
                         disabled={triggeringTriage || aiTriageStatus.isRunning}
                       >
                         {triggeringTriage ? 'Triggering...' : 'Trigger Now'}
