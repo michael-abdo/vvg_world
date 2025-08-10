@@ -5,6 +5,9 @@ import {
   RoutingRule, 
   CreateRoutingRuleRequest, 
   UpdateRoutingRuleRequest,
+  AIRule,
+  CreateAIRuleRequest,
+  UpdateAIRuleRequest,
   AITriageStatus,
   AITriageConfig,
   UpdateAITriageConfigRequest,
@@ -112,6 +115,94 @@ export const routingRulesAPI = {
     
     if (!response.data) {
       throw new Error('Failed to toggle routing rule');
+    }
+    
+    return response.data;
+  },
+};
+
+// AI Rules API Functions
+export const aiRulesAPI = {
+  // Get all AI rules with optional filtering
+  async getAll(filters?: {
+    active?: boolean;
+    triggerType?: string;
+    actionType?: string;
+  }): Promise<AIRule[]> {
+    const params = new URLSearchParams();
+    
+    if (filters?.active !== undefined) {
+      params.append('active', String(filters.active));
+    }
+    if (filters?.triggerType) {
+      params.append('triggerType', filters.triggerType);
+    }
+    if (filters?.actionType) {
+      params.append('actionType', filters.actionType);
+    }
+
+    const queryString = params.toString();
+    const endpoint = `/ai-rules${queryString ? `?${queryString}` : ''}`;
+    
+    const response = await apiCall<AIRule[]>(endpoint);
+    return response.data || [];
+  },
+
+  // Get a specific AI rule by ID
+  async getById(id: number): Promise<AIRule> {
+    const response = await apiCall<AIRule>(`/ai-rules/${id}`);
+    
+    if (!response.data) {
+      throw new Error('AI rule not found');
+    }
+    
+    return response.data;
+  },
+
+  // Create a new AI rule
+  async create(rule: CreateAIRuleRequest): Promise<AIRule> {
+    const response = await apiCall<AIRule>('/ai-rules', {
+      method: 'POST',
+      body: JSON.stringify(rule),
+    });
+    
+    if (!response.data) {
+      throw new Error('Failed to create AI rule');
+    }
+    
+    return response.data;
+  },
+
+  // Update an existing AI rule
+  async update(id: number, updates: UpdateAIRuleRequest): Promise<AIRule> {
+    const response = await apiCall<AIRule>(`/ai-rules/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+    
+    if (!response.data) {
+      throw new Error('Failed to update AI rule');
+    }
+    
+    return response.data;
+  },
+
+  // Delete an AI rule
+  async delete(id: number): Promise<void> {
+    await apiCall(`/ai-rules/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Toggle AI rule active state
+  async toggle(id: number, active: boolean): Promise<AIRule> {
+    const response = await apiCall<AIRule>(`/ai-rules/${id}/toggle`, {
+      method: 'PATCH',
+      body: JSON.stringify({ active }),
+    });
+    
+    if (!response.data) {
+      throw new Error('Failed to toggle AI rule');
     }
     
     return response.data;

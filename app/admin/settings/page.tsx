@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Plus, Edit, Trash2, Users, Mail, Shield, Settings2, GitBranch, Bot, ArrowRight, Zap } from 'lucide-react';
 import { useRoutingRules } from '@/lib/hooks/useRoutingRules';
+import { useAIRules } from '@/lib/hooks/useAIRules';
 import { useAITriage } from '@/lib/hooks/useAITriage';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -56,62 +57,50 @@ const notifications = [
 ];
 
 
-const aiRules = [
-  {
-    id: '1',
-    name: 'Safety Keyword Detection',
-    trigger: 'Contains keywords: hazard, danger, safety, accident, injury',
-    action: 'escalate',
-    target: 'safety@vvgtruck.com',
-    priority: 'critical',
-    active: true,
-    lastTriggered: '2024-08-05'
-  },
-  {
-    id: '2',
-    name: 'Cost Reduction Ideas',
-    trigger: 'Contains keywords: save money, reduce cost, efficiency, optimize',
-    action: 'tag',
-    target: 'cost-reduction',
-    priority: 'high',
-    active: true,
-    lastTriggered: '2024-08-04'
-  },
-  {
-    id: '3',
-    name: 'Duplicate Detection',
-    trigger: 'Similar to existing ideas (>80% similarity)',
-    action: 'flag',
-    target: 'duplicate-review',
-    priority: 'medium',
-    active: true,
-    lastTriggered: '2024-08-06'
-  },
-  {
-    id: '4',
-    name: 'Low Quality Filter',
-    trigger: 'Less than 50 characters OR no clear description',
-    action: 'hold',
-    target: 'needs-clarification',
-    priority: 'low',
-    active: false,
-    lastTriggered: '2024-08-01'
-  }
-];
+// AI Rule trigger type display mappings
+const triggerTypeDisplay = {
+  keywords: 'Contains keywords',
+  similarity: 'Similar to existing ideas',
+  sentiment: 'Negative sentiment',
+  length: 'Content length',
+  custom: 'Custom AI analysis'
+};
+
+// Action type display mappings
+const actionTypeDisplay = {
+  escalate: 'Escalate to email',
+  tag: 'Add tag',
+  flag: 'Flag for review', 
+  hold: 'Hold for clarification',
+  ignore: 'Ignore/archive',
+  route: 'Route to department'
+};
 
 export default function SettingsPage() {
   const [selectedTab, setSelectedTab] = useState('routing');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createAIRuleDialogOpen, setCreateAIRuleDialogOpen] = useState(false);
   const { toast } = useToast();
   
   // Form state for creating new routing rule
   const [newRule, setNewRule] = useState({
     name: '',
-    category: '',
-    department: '',
+    category: 'none',
+    department: 'none',
     stakeholders: '',
     priority: 'medium',
     autoRoute: true
+  });
+  
+  // Form state for creating new AI rule
+  const [newAIRule, setNewAIRule] = useState({
+    name: '',
+    triggerType: 'keywords' as const,
+    triggerDetails: '',
+    actionType: 'escalate' as const,
+    actionTarget: '',
+    priority: 'medium' as const,
+    active: true
   });
   
   // Data Pipeline hooks
@@ -135,16 +124,37 @@ export default function SettingsPage() {
     triggering: triggeringTriage
   } = useAITriage();
   
+  // AI Rules hooks
+  const {
+    rules: aiRules,
+    loading: aiRulesLoading,
+    error: aiRulesError,
+    createRule: createAIRule,
+    toggleRule: toggleAIRule,
+    deleteRule: deleteAIRule,
+    creating: creatingAIRule,
+    updating: updatingAIRule,
+    deleting: deletingAIRule
+  } = useAIRules();
+  
   // Handle form submission
   const handleCreateRule = async () => {
     // Validate form
     if (!newRule.name.trim()) {
-      alert('Please enter a rule name');
+      toast({
+        title: "Validation Error",
+        description: "Please enter a rule name",
+        variant: "destructive",
+      });
       return;
     }
     
     if (!newRule.stakeholders.trim()) {
-      alert('Please enter at least one stakeholder email');
+      toast({
+        title: "Validation Error",
+        description: "Please enter at least one stakeholder email",
+        variant: "destructive",
+      });
       return;
     }
     
@@ -158,7 +168,11 @@ export default function SettingsPage() {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     for (const email of stakeholderEmails) {
       if (!emailRegex.test(email)) {
-        alert(`Invalid email: ${email}`);
+        toast({
+          title: "Validation Error",
+          description: `Invalid email: ${email}`,
+          variant: "destructive",
+        });
         return;
       }
     }
@@ -166,11 +180,11 @@ export default function SettingsPage() {
     try {
       const result = await createRule({
         name: newRule.name,
-        category: newRule.category || null,
-        department: newRule.department === 'all' ? null : newRule.department || null,
+        category: newRule.category === 'none' ? 'General' : newRule.category || 'General',
+        department: newRule.department === 'all' ? 'All' : (newRule.department === 'none' ? 'General' : newRule.department || 'General'),
         stakeholders: stakeholderEmails,
         priority: newRule.priority as 'low' | 'medium' | 'high' | 'critical',
-        auto_route: newRule.autoRoute
+        autoRoute: newRule.autoRoute
       });
       
       if (result) {
@@ -183,8 +197,8 @@ export default function SettingsPage() {
         // Reset form and close dialog
         setNewRule({
           name: '',
-          category: '',
-          department: '',
+          category: 'none',
+          department: 'none',
           stakeholders: '',
           priority: 'medium',
           autoRoute: true
@@ -206,6 +220,84 @@ export default function SettingsPage() {
         variant: "destructive",
       });
       console.error('Failed to create routing rule:', error);
+    }
+  };
+
+  // Handle AI rule creation
+  const handleCreateAIRule = async () => {
+    // Validate form
+    if (!newAIRule.name.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter a rule name",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!newAIRule.triggerDetails.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter trigger details",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!newAIRule.actionTarget.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter an action target",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    try {
+      const result = await createAIRule({
+        name: newAIRule.name,
+        triggerType: newAIRule.triggerType,
+        triggerDetails: newAIRule.triggerDetails,
+        actionType: newAIRule.actionType,
+        actionTarget: newAIRule.actionTarget,
+        priority: newAIRule.priority,
+        active: newAIRule.active
+      });
+      
+      if (result) {
+        // Show success toast
+        toast({
+          title: "Success",
+          description: `AI rule "${result.name}" created successfully.`,
+        });
+        
+        // Reset form and close dialog
+        setNewAIRule({
+          name: '',
+          triggerType: 'keywords',
+          triggerDetails: '',
+          actionType: 'escalate',
+          actionTarget: '',
+          priority: 'medium',
+          active: true
+        });
+        setCreateAIRuleDialogOpen(false);
+      } else {
+        // Show error toast
+        toast({
+          title: "Error",
+          description: "Failed to create AI rule. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      // Show error toast
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      });
+      console.error('Failed to create AI rule:', error);
     }
   };
 
@@ -266,7 +358,7 @@ export default function SettingsPage() {
                             <SelectValue placeholder="Select category" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">None</SelectItem>
+                            <SelectItem value="none">None</SelectItem>
                             {categories.map(cat => (
                               <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
                             ))}
@@ -283,7 +375,7 @@ export default function SettingsPage() {
                             <SelectValue placeholder="Select department" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">None</SelectItem>
+                            <SelectItem value="none">None</SelectItem>
                             <SelectItem value="all">All Departments</SelectItem>
                             {departments.filter(d => !d.parent).map(dept => (
                               <SelectItem key={dept.id} value={dept.name}>{dept.name}</SelectItem>
@@ -410,22 +502,30 @@ export default function SettingsPage() {
                           size="sm" 
                           variant="outline" 
                           disabled={deletingRule}
-                          onClick={async () => {
-                            if (confirm(`Are you sure you want to delete "${rule.name}"?`)) {
-                              const success = await deleteRule(rule.id);
-                              if (success) {
-                                toast({
-                                  title: "Success",
-                                  description: `Routing rule "${rule.name}" deleted successfully.`,
-                                });
-                              } else {
-                                toast({
-                                  title: "Error",
-                                  description: "Failed to delete routing rule.",
-                                  variant: "destructive",
-                                });
+                          onClick={() => {
+                            toast({
+                              title: "Delete Routing Rule",
+                              description: `Are you sure you want to delete "${rule.name}"? This action cannot be undone.`,
+                              action: {
+                                altText: "Delete",
+                                children: "Delete",
+                                onClick: async () => {
+                                  const success = await deleteRule(rule.id);
+                                  if (success) {
+                                    toast({
+                                      title: "Success",
+                                      description: `Routing rule "${rule.name}" deleted successfully.`,
+                                    });
+                                  } else {
+                                    toast({
+                                      title: "Error",
+                                      description: "Failed to delete routing rule.",
+                                      variant: "destructive",
+                                    });
+                                  }
+                                }
                               }
-                            }
+                            });
                           }}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -548,7 +648,7 @@ export default function SettingsPage() {
                 <CardTitle>AI-Powered Rules Engine</CardTitle>
                 <CardDescription>Configure AI to automatically detect patterns and route or flag submissions</CardDescription>
               </div>
-              <Dialog>
+              <Dialog open={createAIRuleDialogOpen} onOpenChange={setCreateAIRuleDialogOpen}>
                 <DialogTrigger asChild>
                   <Button>
                     <Plus className="h-4 w-4 mr-2" />
@@ -563,11 +663,19 @@ export default function SettingsPage() {
                   <div className="space-y-4">
                     <div>
                       <Label htmlFor="ai-rule-name">Rule Name</Label>
-                      <Input id="ai-rule-name" placeholder="e.g., Safety Keyword Detection" />
+                      <Input 
+                        id="ai-rule-name" 
+                        placeholder="e.g., Safety Keyword Detection" 
+                        value={newAIRule.name}
+                        onChange={(e) => setNewAIRule({...newAIRule, name: e.target.value})}
+                      />
                     </div>
                     <div>
                       <Label htmlFor="trigger">Trigger Condition</Label>
-                      <Select>
+                      <Select 
+                        value={newAIRule.triggerType} 
+                        onValueChange={(value: any) => setNewAIRule({...newAIRule, triggerType: value})}
+                      >
                         <SelectTrigger>
                           <SelectValue placeholder="Select trigger type" />
                         </SelectTrigger>
@@ -582,12 +690,20 @@ export default function SettingsPage() {
                     </div>
                     <div>
                       <Label htmlFor="trigger-details">Trigger Details</Label>
-                      <Input id="trigger-details" placeholder="e.g., safety, hazard, danger, accident" />
+                      <Input 
+                        id="trigger-details" 
+                        placeholder="e.g., safety, hazard, danger, accident" 
+                        value={newAIRule.triggerDetails}
+                        onChange={(e) => setNewAIRule({...newAIRule, triggerDetails: e.target.value})}
+                      />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="action">Action</Label>
-                        <Select>
+                        <Select 
+                          value={newAIRule.actionType} 
+                          onValueChange={(value: any) => setNewAIRule({...newAIRule, actionType: value})}
+                        >
                           <SelectTrigger>
                             <SelectValue placeholder="Select action" />
                           </SelectTrigger>
@@ -603,12 +719,20 @@ export default function SettingsPage() {
                       </div>
                       <div>
                         <Label htmlFor="target">Target</Label>
-                        <Input id="target" placeholder="Email or tag name" />
+                        <Input 
+                          id="target" 
+                          placeholder="Email or tag name" 
+                          value={newAIRule.actionTarget}
+                          onChange={(e) => setNewAIRule({...newAIRule, actionTarget: e.target.value})}
+                        />
                       </div>
                     </div>
                     <div>
                       <Label htmlFor="ai-priority">Priority</Label>
-                      <Select>
+                      <Select 
+                        value={newAIRule.priority} 
+                        onValueChange={(value: any) => setNewAIRule({...newAIRule, priority: value})}
+                      >
                         <SelectTrigger>
                           <SelectValue placeholder="Select priority" />
                         </SelectTrigger>
@@ -621,8 +745,19 @@ export default function SettingsPage() {
                       </Select>
                     </div>
                     <div className="flex justify-end gap-2">
-                      <Button variant="outline">Cancel</Button>
-                      <Button>Create Rule</Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setCreateAIRuleDialogOpen(false)}
+                        disabled={creatingAIRule}
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        onClick={handleCreateAIRule}
+                        disabled={creatingAIRule}
+                      >
+                        {creatingAIRule ? 'Creating...' : 'Create Rule'}
+                      </Button>
                     </div>
                   </div>
                 </DialogContent>
@@ -630,7 +765,19 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {aiRules.map((rule) => (
+                {aiRulesLoading && (
+                  <div className="flex items-center justify-center p-8">
+                    <div className="text-sm text-gray-500">Loading AI rules...</div>
+                  </div>
+                )}
+                
+                {aiRulesError && (
+                  <div className="flex items-center justify-center p-8">
+                    <div className="text-sm text-red-500">Error: {aiRulesError}</div>
+                  </div>
+                )}
+                
+                {!aiRulesLoading && !aiRulesError && aiRules.map((rule) => (
                   <div key={rule.id} className="border rounded-lg p-4">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -652,30 +799,86 @@ export default function SettingsPage() {
                           <div className="flex items-center gap-2 text-gray-600">
                             <Zap className="h-4 w-4" />
                             <span className="font-medium">Trigger:</span>
-                            <span>{rule.trigger}</span>
+                            <span>{triggerTypeDisplay[rule.triggerType]}: {rule.triggerDetails}</span>
                           </div>
                           <div className="flex items-center gap-2 text-gray-600">
                             <ArrowRight className="h-4 w-4" />
                             <span className="font-medium">Action:</span>
-                            <span className="capitalize">{rule.action} → {rule.target}</span>
+                            <span className="capitalize">{actionTypeDisplay[rule.actionType]} → {rule.actionTarget}</span>
                           </div>
                           <div className="text-gray-500">
-                            Last triggered: {rule.lastTriggered}
+                            Last triggered: {rule.lastTriggeredAt ? new Date(rule.lastTriggeredAt).toLocaleDateString() : 'Never'}
+                          </div>
+                          <div className="text-gray-500">
+                            Triggered {rule.triggerCount} times
                           </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Switch checked={rule.active} />
-                        <Button size="sm" variant="outline">
+                        <Switch 
+                          checked={rule.active} 
+                          onCheckedChange={async (active) => {
+                            const result = await toggleAIRule(rule.id, active);
+                            if (result) {
+                              toast({
+                                title: "Success",
+                                description: `AI rule "${rule.name}" ${active ? 'enabled' : 'disabled'}.`,
+                              });
+                            } else {
+                              toast({
+                                title: "Error",
+                                description: "Failed to update AI rule.",
+                                variant: "destructive",
+                              });
+                            }
+                          }}
+                          disabled={updatingAIRule}
+                        />
+                        <Button size="sm" variant="outline" disabled={updatingAIRule}>
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button size="sm" variant="outline">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          disabled={deletingAIRule}
+                          onClick={() => {
+                            toast({
+                              title: "Delete AI Rule",
+                              description: `Are you sure you want to delete "${rule.name}"? This action cannot be undone.`,
+                              action: {
+                                altText: "Delete",
+                                children: "Delete",
+                                onClick: async () => {
+                                  const success = await deleteAIRule(rule.id);
+                                  if (success) {
+                                    toast({
+                                      title: "Success",
+                                      description: `AI rule "${rule.name}" deleted successfully.`,
+                                    });
+                                  } else {
+                                    toast({
+                                      title: "Error",
+                                      description: "Failed to delete AI rule.",
+                                      variant: "destructive",
+                                    });
+                                  }
+                                }
+                              }
+                            });
+                          }}
+                        >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
                   </div>
                 ))}
+                
+                {!aiRulesLoading && !aiRulesError && aiRules.length === 0 && (
+                  <div className="flex items-center justify-center p-8">
+                    <div className="text-sm text-gray-500">No AI rules configured</div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

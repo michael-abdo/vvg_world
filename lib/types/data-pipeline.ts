@@ -1,6 +1,8 @@
 // Data Pipeline Type Definitions
 
 export type PriorityLevel = 'low' | 'medium' | 'high' | 'critical';
+export type TriggerType = 'keywords' | 'similarity' | 'sentiment' | 'length' | 'custom';
+export type ActionType = 'escalate' | 'tag' | 'flag' | 'hold' | 'ignore' | 'route';
 
 export interface RoutingRule {
   id: number;
@@ -26,6 +28,35 @@ export interface CreateRoutingRuleRequest {
 }
 
 export interface UpdateRoutingRuleRequest extends Partial<CreateRoutingRuleRequest> {
+  id: number;
+}
+
+export interface AIRule {
+  id: number;
+  name: string;
+  triggerType: TriggerType;
+  triggerDetails: string;
+  actionType: ActionType;
+  actionTarget: string;
+  priority: PriorityLevel;
+  active: boolean;
+  lastTriggeredAt: string | null;
+  triggerCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAIRuleRequest {
+  name: string;
+  triggerType: TriggerType;
+  triggerDetails: string;
+  actionType: ActionType;
+  actionTarget: string;
+  priority?: PriorityLevel;
+  active?: boolean;
+}
+
+export interface UpdateAIRuleRequest extends Partial<CreateAIRuleRequest> {
   id: number;
 }
 
@@ -206,6 +237,21 @@ export interface AITriageConfigRow {
   items_processed_last_run: number;
   total_items_processed: number;
   settings: string; // JSON string
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface AIRuleRow {
+  id: number;
+  name: string;
+  trigger_type: TriggerType;
+  trigger_details: string;
+  action_type: ActionType;
+  action_target: string;
+  priority: PriorityLevel;
+  active: boolean;
+  last_triggered_at: Date | null;
+  trigger_count: number;
   created_at: Date;
   updated_at: Date;
 }
