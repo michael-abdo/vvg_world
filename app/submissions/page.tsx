@@ -19,66 +19,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { ArrowUpDown, Filter, Lightbulb, Search, ThumbsUp, Clock, CheckCircle2 } from 'lucide-react';
+import { ArrowUpDown, Filter, Lightbulb, Search, ThumbsUp, Clock, CheckCircle2, Loader2 } from 'lucide-react';
 
-// Mock data for submissions
-const mockSubmissions = [
-  {
-    id: '1',
-    name: 'Sarah Johnson',
-    department: 'Van Life',
-    location: 'Warehouse - Dallas',
-    category: 'Efficiency',
-    description: 'Implement automated sorting system for incoming packages to reduce manual labor by 40%',
-    status: 'Under Review',
-    votes: 12,
-    submittedAt: '2025-08-05T10:30:00Z',
-  },
-  {
-    id: '2',
-    name: 'Mike Chen',
-    department: 'Transportation',
-    location: 'Headquarters - Austin',
-    category: 'Safety',
-    description: 'Install blind spot cameras on all delivery vehicles to prevent accidents',
-    status: 'In Progress',
-    votes: 28,
-    submittedAt: '2025-08-04T14:15:00Z',
-  },
-  {
-    id: '3',
-    name: 'Emily Rodriguez',
-    department: 'Customer Service',
-    location: 'Office - New York',
-    category: 'Cost Savings',
-    description: 'Create AI chatbot for common customer inquiries to reduce call center load',
-    status: 'Implemented',
-    votes: 45,
-    submittedAt: '2025-08-03T09:45:00Z',
-  },
-  {
-    id: '4',
-    name: 'James Wilson',
-    department: 'Fulfillment',
-    location: 'Warehouse - Houston',
-    category: 'Quality',
-    description: 'Double-check system for high-value orders to reduce shipping errors',
-    status: 'Under Review',
-    votes: 8,
-    submittedAt: '2025-08-02T16:20:00Z',
-  },
-  {
-    id: '5',
-    name: 'Lisa Park',
-    department: 'Engineering',
-    location: 'Headquarters - Austin',
-    category: 'Efficiency',
-    description: 'Develop mobile app for drivers to optimize delivery routes in real-time',
-    status: 'In Progress',
-    votes: 35,
-    submittedAt: '2025-08-01T11:00:00Z',
-  },
-];
 
 const statusConfig = {
   'Under Review': { color: 'secondary', icon: Clock },
@@ -87,12 +29,50 @@ const statusConfig = {
 };
 
 export default function SubmissionsPage() {
-  const [submissions, setSubmissions] = useState(mockSubmissions);
-  const [filteredSubmissions, setFilteredSubmissions] = useState(mockSubmissions);
+  const [submissions, setSubmissions] = useState<any[]>([]);
+  const [filteredSubmissions, setFilteredSubmissions] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
   const [votedIdeas, setVotedIdeas] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch submissions from API
+  const fetchSubmissions = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      console.log('Fetching submissions from API...');
+      
+      const response = await fetch('/api/submissions');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('API response:', data);
+      
+      if (data.success) {
+        setSubmissions(data.submissions || []);
+        console.log(`Loaded ${data.submissions?.length || 0} submissions from database`);
+      } else {
+        throw new Error(data.error || 'Failed to fetch submissions');
+      }
+    } catch (err) {
+      console.error('Error fetching submissions:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load submissions');
+      // Fallback to empty array instead of mock data
+      setSubmissions([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load submissions on component mount
+  useEffect(() => {
+    fetchSubmissions();
+  }, []);
 
   // Filter and sort submissions
   useEffect(() => {
@@ -130,37 +110,114 @@ export default function SubmissionsPage() {
     setFilteredSubmissions(filtered);
   }, [submissions, searchTerm, categoryFilter, sortBy]);
 
-  const handleVote = (id: string) => {
+  const handleVote = async (id: string) => {
     console.log('Vote clicked for id:', id);
     console.log('Current voted ideas:', Array.from(votedIdeas));
     
-    if (votedIdeas.has(id)) {
-      // Unvote
-      console.log('Unvoting id:', id);
-      setVotedIdeas((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(id);
-        console.log('New voted ideas after unvote:', Array.from(newSet));
-        return newSet;
+    const isVoted = votedIdeas.has(id);
+    const action = isVoted ? 'remove' : 'add';
+    
+    try {
+      // Optimistic UI update
+      if (isVoted) {
+        // Unvote
+        console.log('Unvoting id:', id);
+        setVotedIdeas((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(id);
+          console.log('New voted ideas after unvote:', Array.from(newSet));
+          return newSet;
+        });
+        setSubmissions((prev) =>
+          prev.map((sub) =>
+            sub.id === id ? { ...sub, votes: Math.max(sub.votes - 1, 0) } : sub
+          )
+        );
+      } else {
+        // Vote
+        console.log('Voting for id:', id);
+        setVotedIdeas((prev) => {
+          const newSet = new Set(prev).add(id);
+          console.log('New voted ideas after vote:', Array.from(newSet));
+          return newSet;
+        });
+        setSubmissions((prev) =>
+          prev.map((sub) =>
+            sub.id === id ? { ...sub, votes: sub.votes + 1 } : sub
+          )
+        );
+      }
+
+      // Call voting API endpoint
+      const response = await fetch('/api/submissions/vote', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          painPointId: id,
+          userEmail: 'michael.abdo@vvg.com',
+          voteType: 'up',
+          action: action
+        }),
       });
-      setSubmissions((prev) =>
-        prev.map((sub) =>
-          sub.id === id ? { ...sub, votes: sub.votes - 1 } : sub
-        )
-      );
-    } else {
-      // Vote
-      console.log('Voting for id:', id);
-      setVotedIdeas((prev) => {
-        const newSet = new Set(prev).add(id);
-        console.log('New voted ideas after vote:', Array.from(newSet));
-        return newSet;
-      });
-      setSubmissions((prev) =>
-        prev.map((sub) =>
-          sub.id === id ? { ...sub, votes: sub.votes + 1 } : sub
-        )
-      );
+
+      const result = await response.json();
+      console.log('Vote API response:', result);
+
+      if (!result.success) {
+        // Revert optimistic update on failure
+        console.error('Vote failed, reverting changes');
+        if (isVoted) {
+          setVotedIdeas((prev) => new Set(prev).add(id));
+          setSubmissions((prev) =>
+            prev.map((sub) =>
+              sub.id === id ? { ...sub, votes: sub.votes + 1 } : sub
+            )
+          );
+        } else {
+          setVotedIdeas((prev) => {
+            const newSet = new Set(prev);
+            newSet.delete(id);
+            return newSet;
+          });
+          setSubmissions((prev) =>
+            prev.map((sub) =>
+              sub.id === id ? { ...sub, votes: Math.max(sub.votes - 1, 0) } : sub
+            )
+          );
+        }
+      } else {
+        // Update with actual vote count from server
+        setSubmissions((prev) =>
+          prev.map((sub) =>
+            sub.id === id ? { ...sub, votes: result.votes || sub.votes } : sub
+          )
+        );
+      }
+      
+    } catch (error) {
+      console.error('Error processing vote:', error);
+      // Revert optimistic update on error
+      if (isVoted) {
+        setVotedIdeas((prev) => new Set(prev).add(id));
+        setSubmissions((prev) =>
+          prev.map((sub) =>
+            sub.id === id ? { ...sub, votes: sub.votes + 1 } : sub
+          )
+        );
+      } else {
+        setVotedIdeas((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(id);
+          return newSet;
+        });
+        setSubmissions((prev) =>
+          prev.map((sub) =>
+            sub.id === id ? { ...sub, votes: Math.max(sub.votes - 1, 0) } : sub
+          )
+        );
+      }
     }
   };
 
@@ -171,9 +228,36 @@ export default function SubmissionsPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">All Submissions</h1>
           <p className="text-gray-600">
-            Browse and vote on ideas from across VVG
+            Browse and vote on pain points from across VVG
           </p>
         </div>
+
+        {/* Loading State */}
+        {loading && (
+          <div className="flex justify-center items-center py-12">
+            <div className="text-center">
+              <Loader2 className="h-8 w-8 animate-spin text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-600">Loading submissions...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Error State */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-red-900 mb-2">Error Loading Submissions</h3>
+              <p className="text-red-700 mb-4">{error}</p>
+              <Button onClick={fetchSubmissions} variant="outline">
+                Try Again
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Content - only show when not loading */}
+        {!loading && (
+          <>
 
         {/* Filters and Search */}
         <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
@@ -297,6 +381,8 @@ export default function SubmissionsPage() {
               </Button>
             </Link>
           </div>
+        )}
+        </>
         )}
       </div>
     </div>

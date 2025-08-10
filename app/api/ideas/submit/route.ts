@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { v4 as uuidv4 } from 'uuid';
+import { executeQuery } from '@/lib/db';
 
 // Validation schema matching the frontend
 const ideaSubmissionSchema = z.object({
@@ -19,29 +19,52 @@ export async function POST(request: NextRequest) {
     // Validate the request body
     const validatedData = ideaSubmissionSchema.parse(body);
     
-    // Generate a unique ID for the submission
-    const ideaId = uuidv4();
+    // Create database insert query for pain_points table
+    const insertQuery = `
+      INSERT INTO pain_points (
+        title, 
+        description, 
+        category, 
+        submitted_by, 
+        department, 
+        location,
+        status,
+        upvotes,
+        downvotes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
     
-    // TODO: Save to database
-    // For now, we'll just simulate saving and return the data
-    const submission = {
-      id: ideaId,
-      ...validatedData,
-      status: 'Under Review',
-      submittedAt: new Date().toISOString(),
-      votes: 0,
-    };
+    const values = [
+      `Pain Point: ${validatedData.category}`, // title - we'll create a generic title
+      validatedData.description,
+      validatedData.category,
+      `${validatedData.name.toLowerCase().replace(/\s+/g, '.')}@vvg.com`, // submitted_by (email format)
+      validatedData.department,
+      validatedData.location,
+      'under_review', // status
+      0, // upvotes
+      0  // downvotes
+    ];
     
-    // In production, you would save to database here:
-    // await db.ideas.create({ data: submission });
+    // Save to database
+    const result: any = await executeQuery({
+      query: insertQuery,
+      values: values
+    });
+    
+    // Get the database-generated ID
+    const painPointId = result.insertId;
     
     // Log submission for development
-    console.log('New idea submitted:', submission);
+    console.log('New pain point submitted to database:', {
+      id: painPointId,
+      ...validatedData
+    });
     
     return NextResponse.json({
       success: true,
-      id: ideaId,
-      message: 'Idea submitted successfully',
+      id: painPointId,
+      message: 'Pain point submitted successfully',
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
