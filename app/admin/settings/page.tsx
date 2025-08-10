@@ -12,6 +12,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Plus, Edit, Trash2, Users, Mail, Shield, Settings2, GitBranch, Bot, ArrowRight, Zap } from 'lucide-react';
+import { useRoutingRules } from '@/lib/hooks/useRoutingRules';
+import { useAITriage } from '@/lib/hooks/useAITriage';
 
 // Mock data
 const departments = [
@@ -52,48 +54,6 @@ const notifications = [
   { id: '5', name: 'Monthly Report', enabled: false, frequency: 'monthly', recipients: 'admins' }
 ];
 
-const routingRules = [
-  { 
-    id: '1', 
-    name: 'Safety Critical Issues',
-    category: 'Safety',
-    department: 'All',
-    stakeholders: ['safety@vvgtruck.com', 'compliance@vvgtruck.com'],
-    priority: 'high',
-    autoRoute: true,
-    active: true
-  },
-  { 
-    id: '2', 
-    name: 'Engineering Features',
-    category: 'Tech',
-    department: 'Engineering',
-    stakeholders: ['engineering-leads@vvgtruck.com', 'john.smith@vvgtruck.com'],
-    priority: 'medium',
-    autoRoute: true,
-    active: true
-  },
-  { 
-    id: '3', 
-    name: 'HR Culture Initiatives',
-    category: 'Culture',
-    department: 'HR',
-    stakeholders: ['hr-team@vvgtruck.com', 'emily.davis@vvgtruck.com'],
-    priority: 'medium',
-    autoRoute: true,
-    active: true
-  },
-  { 
-    id: '4', 
-    name: 'Product Improvements',
-    category: 'Product',
-    department: 'Product',
-    stakeholders: ['product@vvgtruck.com', 'sarah.johnson@vvgtruck.com'],
-    priority: 'high',
-    autoRoute: true,
-    active: true
-  }
-];
 
 const aiRules = [
   {
@@ -140,6 +100,26 @@ const aiRules = [
 
 export default function SettingsPage() {
   const [selectedTab, setSelectedTab] = useState('routing');
+  
+  // Data Pipeline hooks
+  const { 
+    rules: routingRules, 
+    loading: routingRulesLoading, 
+    error: routingRulesError,
+    toggleRule,
+    deleteRule,
+    creating: creatingRule,
+    updating: updatingRule,
+    deleting: deletingRule
+  } = useRoutingRules();
+  
+  const { 
+    status: aiTriageStatus, 
+    loading: aiTriageLoading, 
+    error: aiTriageError,
+    triggerTriage,
+    triggering: triggeringTriage
+  } = useAITriage();
 
   return (
     <div className="space-y-6 p-6">
@@ -243,7 +223,19 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {routingRules.map((rule) => (
+                {routingRulesLoading && (
+                  <div className="flex items-center justify-center p-8">
+                    <div className="text-sm text-gray-500">Loading routing rules...</div>
+                  </div>
+                )}
+                
+                {routingRulesError && (
+                  <div className="flex items-center justify-center p-8">
+                    <div className="text-sm text-red-500">Error: {routingRulesError}</div>
+                  </div>
+                )}
+                
+                {!routingRulesLoading && !routingRulesError && routingRules.map((rule) => (
                   <div key={rule.id} className="border rounded-lg p-4">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -268,17 +260,36 @@ export default function SettingsPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Switch checked={rule.active} />
-                        <Button size="sm" variant="outline">
+                        <Switch 
+                          checked={rule.active} 
+                          onCheckedChange={(active) => toggleRule(rule.id, active)}
+                          disabled={updatingRule}
+                        />
+                        <Button size="sm" variant="outline" disabled={updatingRule}>
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button size="sm" variant="outline">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          disabled={deletingRule}
+                          onClick={() => {
+                            if (confirm(`Are you sure you want to delete "${rule.name}"?`)) {
+                              deleteRule(rule.id);
+                            }
+                          }}
+                        >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
                   </div>
                 ))}
+                
+                {!routingRulesLoading && !routingRulesError && routingRules.length === 0 && (
+                  <div className="flex items-center justify-center p-8">
+                    <div className="text-sm text-gray-500">No routing rules configured</div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -289,33 +300,78 @@ export default function SettingsPage() {
               <CardDescription>Configure the AI bot that automatically triages submissions every week</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <h3 className="font-medium">Weekly AI Triage</h3>
-                    <p className="text-sm text-gray-500">Runs every Monday at 9:00 AM</p>
+              {aiTriageLoading && (
+                <div className="flex items-center justify-center p-8">
+                  <div className="text-sm text-gray-500">Loading AI triage status...</div>
+                </div>
+              )}
+              
+              {aiTriageError && (
+                <div className="flex items-center justify-center p-8">
+                  <div className="text-sm text-red-500">Error: {aiTriageError}</div>
+                </div>
+              )}
+              
+              {!aiTriageLoading && !aiTriageError && aiTriageStatus && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <h3 className="font-medium">Weekly AI Triage</h3>
+                      <p className="text-sm text-gray-500">
+                        {aiTriageStatus.config.scheduleCron === '0 9 * * 1' 
+                          ? 'Runs every Monday at 9:00 AM' 
+                          : `Schedule: ${aiTriageStatus.config.scheduleCron}`}
+                      </p>
+                      {aiTriageStatus.isRunning && (
+                        <p className="text-sm text-blue-600 font-medium">Currently running...</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <Badge className="bg-blue-100 text-blue-800">
+                        <Bot className="h-3 w-3 mr-1" />
+                        AI Powered
+                      </Badge>
+                      <Switch 
+                        checked={aiTriageStatus.config.enabled} 
+                        disabled={true}
+                      />
+                      <Button 
+                        size="sm" 
+                        onClick={() => triggerTriage()}
+                        disabled={triggeringTriage || aiTriageStatus.isRunning}
+                      >
+                        {triggeringTriage ? 'Triggering...' : 'Trigger Now'}
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <Badge className="bg-blue-100 text-blue-800">
-                      <Bot className="h-3 w-3 mr-1" />
-                      AI Powered
-                    </Badge>
-                    <Switch checked={true} />
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <div className="font-medium mb-1">Last Run</div>
+                      <div className="text-gray-600">
+                        {aiTriageStatus.lastRun?.completedAt 
+                          ? new Date(aiTriageStatus.lastRun.completedAt).toLocaleString()
+                          : 'Never run'
+                        }
+                      </div>
+                      <div className="text-gray-500">
+                        Processed {aiTriageStatus.lastRun?.itemsProcessed || 0} ideas
+                      </div>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <div className="font-medium mb-1">Next Run</div>
+                      <div className="text-gray-600">
+                        {aiTriageStatus.nextRun.scheduledAt 
+                          ? new Date(aiTriageStatus.nextRun.scheduledAt).toLocaleString()
+                          : 'Not scheduled'
+                        }
+                      </div>
+                      <div className="text-gray-500">
+                        {aiTriageStatus.nextRun.pendingItems} ideas pending
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div className="p-3 bg-gray-50 rounded-lg">
-                    <div className="font-medium mb-1">Last Run</div>
-                    <div className="text-gray-600">Aug 5, 2024 - 9:00 AM</div>
-                    <div className="text-gray-500">Processed 47 ideas</div>
-                  </div>
-                  <div className="p-3 bg-gray-50 rounded-lg">
-                    <div className="font-medium mb-1">Next Run</div>
-                    <div className="text-gray-600">Aug 12, 2024 - 9:00 AM</div>
-                    <div className="text-gray-500">23 ideas pending</div>
-                  </div>
-                </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
