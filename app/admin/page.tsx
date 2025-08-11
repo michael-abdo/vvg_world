@@ -7,59 +7,60 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Users, FileText, TrendingUp, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
+import { ApiResponse, DashboardData } from '@/types/dashboard';
 
-// Mock data
-const mockStats = {
-  totalIdeas: 156,
-  pendingReview: 23,
-  approved: 89,
-  rejected: 44,
-  totalUsers: 1247,
-  activeUsers: 892
-};
-
-const mockStatusData = [
-  { name: 'Pending', value: 23, color: '#f59e0b' },
-  { name: 'Approved', value: 89, color: '#10b981' },
-  { name: 'Rejected', value: 44, color: '#ef4444' }
-];
-
-const mockCategoryData = [
-  { name: 'Product', count: 45, color: '#3b82f6' },
-  { name: 'Process', count: 38, color: '#8b5cf6' },
-  { name: 'Culture', count: 29, color: '#06b6d4' },
-  { name: 'Tech', count: 32, color: '#10b981' },
-  { name: 'Other', count: 12, color: '#f59e0b' }
-];
-
-const mockRecentIdeas = [
-  { id: '1', title: 'Improve onboarding process', submitter: 'Sarah Johnson', status: 'pending', date: '2024-08-06', category: 'Process' },
-  { id: '2', title: 'AI chatbot for customer support', submitter: 'Mike Chen', status: 'approved', date: '2024-08-05', category: 'Tech' },
-  { id: '3', title: 'Flexible work hours policy', submitter: 'Emily Davis', status: 'pending', date: '2024-08-05', category: 'Culture' },
-  { id: '4', title: 'Mobile app redesign', submitter: 'Alex Rodriguez', status: 'approved', date: '2024-08-04', category: 'Product' },
-  { id: '5', title: 'Team building activities', submitter: 'Lisa Thompson', status: 'rejected', date: '2024-08-03', category: 'Culture' }
-];
 
 export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState(mockStats);
+  const [error, setError] = useState<string | null>(null);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+
+  // Fetch dashboard data from API
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Add dev bypass header in development
+      const headers: Record<string, string> = {};
+      if (process.env.NODE_ENV === 'development') {
+        headers['X-Dev-Bypass'] = 'true';
+      }
+      
+      const response = await fetch('/api/admin/dashboard', { headers });
+      const result: ApiResponse<DashboardData> = await response.json();
+      
+      if (result.success && result.data) {
+        setDashboardData(result.data);
+      } else {
+        setError(result.error || 'Failed to fetch dashboard data');
+      }
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+      setError('Network error - please try again');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // Simulate loading
-    const timer = setTimeout(() => setLoading(false), 1000);
-    return () => clearTimeout(timer);
+    fetchDashboardData();
   }, []);
 
   const getStatusBadge = (status: string) => {
     const variants = {
       pending: 'bg-yellow-100 text-yellow-800',
+      'under_review': 'bg-blue-100 text-blue-800',
+      'in_progress': 'bg-purple-100 text-purple-800',
+      completed: 'bg-green-100 text-green-800',
+      implemented: 'bg-green-100 text-green-800',
       approved: 'bg-green-100 text-green-800',
       rejected: 'bg-red-100 text-red-800'
     };
     return variants[status as keyof typeof variants] || variants.pending;
   };
 
-  if (loading) {
+  if (loading || !dashboardData) {
     return (
       <div className="space-y-6 p-6">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -88,6 +89,17 @@ export default function AdminDashboard() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="space-y-6 p-6">
+        <div className="text-center py-12">
+          <p className="text-red-600 mb-4">{error}</p>
+          <Button onClick={fetchDashboardData}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
@@ -103,7 +115,7 @@ export default function AdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Ideas</p>
-                <p className="text-3xl font-bold">{stats.totalIdeas}</p>
+                <p className="text-3xl font-bold">{dashboardData.stats.totalIdeas}</p>
               </div>
               <FileText className="h-8 w-8 text-blue-600" />
             </div>
@@ -115,7 +127,7 @@ export default function AdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Pending Review</p>
-                <p className="text-3xl font-bold text-yellow-600">{stats.pendingReview}</p>
+                <p className="text-3xl font-bold text-yellow-600">{dashboardData.stats.pendingReview}</p>
               </div>
               <Clock className="h-8 w-8 text-yellow-600" />
             </div>
@@ -127,7 +139,7 @@ export default function AdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Approved</p>
-                <p className="text-3xl font-bold text-green-600">{stats.approved}</p>
+                <p className="text-3xl font-bold text-green-600">{dashboardData.stats.approved}</p>
               </div>
               <CheckCircle className="h-8 w-8 text-green-600" />
             </div>
@@ -139,7 +151,7 @@ export default function AdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Users</p>
-                <p className="text-3xl font-bold">{stats.totalUsers}</p>
+                <p className="text-3xl font-bold">{dashboardData.stats.totalUsers}</p>
               </div>
               <Users className="h-8 w-8 text-purple-600" />
             </div>
@@ -156,7 +168,7 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={mockStatusData}>
+              <BarChart data={dashboardData.statusData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
                 <YAxis />
@@ -176,7 +188,7 @@ export default function AdminDashboard() {
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={mockCategoryData}
+                  data={dashboardData.categoryData}
                   cx="50%"
                   cy="50%"
                   outerRadius={80}
@@ -184,7 +196,7 @@ export default function AdminDashboard() {
                   dataKey="count"
                   label={({ name, count }) => `${name}: ${count}`}
                 >
-                  {mockCategoryData.map((entry, index) => (
+                  {dashboardData.categoryData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
@@ -203,7 +215,7 @@ export default function AdminDashboard() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {mockRecentIdeas.map((idea) => (
+            {dashboardData.recentIdeas.map((idea) => (
               <div key={idea.id} className="flex items-center justify-between p-4 border rounded-lg">
                 <div className="flex-1">
                   <h3 className="font-semibold text-gray-900">{idea.title}</h3>
