@@ -1,12 +1,7 @@
-// Email Notification Service with SMTP Implementation
-// Based on vvg_template email service with nodemailer and AWS SES SMTP
+// Email Notification Service
+// Handles sending email notifications for data pipeline routing
 
-import { config } from '@/lib/config';
 import { RoutingAction, EmailNotificationData, PriorityLevel } from '@/lib/types/data-pipeline';
-
-// Nodemailer imports (need to install: npm install nodemailer @types/nodemailer)
-// import * as nodemailer from 'nodemailer';
-// import { Transporter, SendMailOptions } from 'nodemailer';
 
 // Interface for pain point data used in emails
 interface PainPointEmailData {
@@ -26,129 +21,15 @@ interface EmailTemplate {
   text: string;
 }
 
-// Email message interface
-interface EmailMessage {
-  to: string | string[];
-  subject: string;
-  html?: string;
-  text?: string;
-  from?: string;
-}
-
-// Email service class with SMTP implementation
+// Email service class
 export class EmailService {
   private readonly baseUrl: string;
-  // private transporter: Transporter | null = null;
 
   constructor() {
-    this.baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001';
-    this.initializeTransporter();
+    this.baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3002';
   }
 
-  // Initialize nodemailer transporter
-  private async initializeTransporter(): Promise<void> {
-    try {
-      if (config.NODE_ENV === 'development' && !config.email.enableInDev) {
-        console.log('📧 Email service initialized in development mode (emails will be logged, not sent)');
-        return;
-      }
-
-      // Nodemailer SMTP configuration
-      // this.transporter = nodemailer.createTransporter({
-      //   host: config.email.smtp.host,
-      //   port: config.email.smtp.port,
-      //   secure: config.email.smtp.secure,
-      //   auth: {
-      //     user: config.email.smtp.auth.user,
-      //     pass: config.email.smtp.auth.pass,
-      //   },
-      //   // Additional options for AWS SES
-      //   connectionTimeout: 60000,
-      //   greetingTimeout: 30000,
-      //   socketTimeout: 60000,
-      // });
-
-      console.log('📧 Email service initialized with SMTP configuration');
-    } catch (error) {
-      console.error('❌ Failed to initialize email service:', error);
-    }
-  }
-
-  // Verify SMTP connection
-  async verifyConnection(): Promise<boolean> {
-    try {
-      if (config.NODE_ENV === 'development' && !config.email.enableInDev) {
-        console.log('📧 [DEV MODE] SMTP connection verification skipped');
-        return true;
-      }
-
-      // if (!this.transporter) {
-      //   throw new Error('Email transporter not initialized');
-      // }
-
-      // await this.transporter.verify();
-      console.log('✅ SMTP connection verified successfully');
-      return true;
-    } catch (error) {
-      console.error('❌ SMTP connection verification failed:', error);
-      return false;
-    }
-  }
-
-  // Core email sending method
-  async sendEmail(message: EmailMessage): Promise<{ success: boolean; messageId?: string; error?: string }> {
-    try {
-      // Development mode - log instead of sending
-      if (config.NODE_ENV === 'development' && !config.email.enableInDev) {
-        console.log('📧 [DEV MODE] Email would be sent:', {
-          to: message.to,
-          subject: message.subject,
-          from: message.from || config.email.from,
-          textPreview: message.text?.substring(0, 100) + '...',
-          htmlLength: message.html?.length || 0
-        });
-        return { success: true, messageId: 'dev-mode-' + Date.now() };
-      }
-
-      // Staging mode - redirect to test recipient
-      let recipients = message.to;
-      if (config.NODE_ENV === 'staging' && config.email.testRecipient) {
-        recipients = config.email.testRecipient;
-        console.log('📧 [STAGING] Redirecting email to test recipient:', config.email.testRecipient);
-      }
-
-      // Production email sending
-      // if (!this.transporter) {
-      //   throw new Error('Email transporter not initialized');
-      // }
-
-      // const mailOptions: SendMailOptions = {
-      //   from: message.from || config.email.from,
-      //   to: recipients,
-      //   subject: message.subject,
-      //   text: message.text,
-      //   html: message.html,
-      // };
-
-      // const result = await this.transporter.sendMail(mailOptions);
-      // console.log('✅ Email sent successfully:', result.messageId);
-      
-      // return { success: true, messageId: result.messageId };
-      
-      // Placeholder return for now
-      console.log('📧 [PLACEHOLDER] Email would be sent via SMTP');
-      return { success: true, messageId: 'placeholder-' + Date.now() };
-
-    } catch (error) {
-      console.error('❌ Error sending email:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error occurred' 
-      };
-    }
-  }
-
-  // Send routing notification to stakeholders (preserving existing interface)
+  // Send routing notification to stakeholders
   async sendRoutingNotification(data: {
     painPoint: PainPointEmailData;
     rule: any;
@@ -163,7 +44,24 @@ export class EmailService {
   }): Promise<void> {
     const recipients = data.stakeholders;
     try {
-      // Generate email content using existing template logic
+      // In development, just log the email instead of sending
+      if (process.env.NODE_ENV === 'development') {
+        console.log('📧 [DEV MODE] Would send routing notification email:', {
+          to: recipients,
+          subject: this.generateSubject(data.painPoint, data.priority),
+          painPoint: {
+            id: data.painPoint.id,
+            title: data.painPoint.title,
+            category: data.painPoint.category,
+            priority: data.priority
+          },
+          rule: data.rule,
+          aiAnalysis: data.aiAnalysis
+        });
+        return;
+      }
+
+      // Generate email content
       const emailData: EmailNotificationData & { aiAnalysis?: typeof data.aiAnalysis } = {
         to: recipients,
         subject: this.generateSubject(data.painPoint, data.priority as PriorityLevel),
@@ -182,19 +80,9 @@ export class EmailService {
 
       const template = this.generateEmailTemplate(emailData);
 
-      // Send to each recipient
-      for (const recipient of recipients) {
-        const result = await this.sendEmail({
-          to: recipient,
-          subject: template.subject,
-          html: template.html,
-          text: template.text
-        });
-
-        if (!result.success) {
-          console.error(`Failed to send routing notification to ${recipient}:`, result.error);
-        }
-      }
+      // In production, this would integrate with AWS SES, SendGrid, etc.
+      // For now, we'll simulate sending
+      await this.sendEmail(recipients, template);
 
     } catch (error) {
       console.error('Error sending routing notification:', error);
@@ -202,182 +90,6 @@ export class EmailService {
     }
   }
 
-  // Send weekly triage summary email (preserving existing interface)
-  async sendTriageSummary(
-    recipients: string[], 
-    summary: {
-      itemsProcessed: number;
-      itemsRouted: number;
-      itemsFlagged: number;
-      processingTime: number;
-      topCategories: Array<{category: string, count: number}>;
-      aiInsights?: {
-        averageConfidence: number;
-        sentimentBreakdown: {
-          positive: number;
-          neutral: number;
-          negative: number;
-        };
-        topAICategories: Array<{category: string, count: number}>;
-        processingStats: {
-          aiSuccessRate: number;
-          averageProcessingTime: number;
-        };
-      };
-    }
-  ): Promise<void> {
-    try {
-      const template = this.generateTriageSummaryTemplate(summary);
-      
-      for (const recipient of recipients) {
-        const result = await this.sendEmail({
-          to: recipient,
-          subject: template.subject,
-          html: template.html,
-          text: template.text
-        });
-
-        if (!result.success) {
-          console.error(`Failed to send triage summary to ${recipient}:`, result.error);
-        }
-      }
-
-    } catch (error) {
-      console.error('Error sending triage summary:', error);
-      throw new Error(`Failed to send triage summary: ${error}`);
-    }
-  }
-
-  // Additional utility methods from vvg_template
-  async sendNotification(
-    to: string,
-    subject: string,
-    message: string,
-    isHtml: boolean = false
-  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
-    return this.sendEmail({
-      to,
-      subject,
-      html: isHtml ? message : undefined,
-      text: isHtml ? undefined : message
-    });
-  }
-
-  async sendSystemAlert(
-    title: string,
-    message: string,
-    priority: 'low' | 'medium' | 'high' | 'critical' = 'medium'
-  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
-    const priorityColors = {
-      low: '#10b981',
-      medium: '#f59e0b', 
-      high: '#ea580c',
-      critical: '#dc2626'
-    };
-
-    const priorityEmojis = {
-      low: '📝',
-      medium: '⚠️',
-      high: '🔥',
-      critical: '🚨'
-    };
-
-    const htmlMessage = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .alert { background-color: ${priorityColors[priority]}; color: white; padding: 20px; border-radius: 8px; }
-            .content { padding: 20px; background-color: #f8f9fa; border-radius: 8px; margin: 20px 0; }
-        </style>
-    </head>
-    <body>
-        <div class="alert">
-            <h1>${priorityEmojis[priority]} System Alert - ${priority.toUpperCase()}</h1>
-        </div>
-        <div class="content">
-            <h2>${title}</h2>
-            <p>${message}</p>
-            <p><strong>Priority:</strong> ${priority.toUpperCase()}</p>
-            <p><strong>Time:</strong> ${new Date().toISOString()}</p>
-        </div>
-    </body>
-    </html>
-    `;
-
-    const textMessage = `
-    SYSTEM ALERT - ${priority.toUpperCase()}
-    
-    ${title}
-    
-    ${message}
-    
-    Priority: ${priority.toUpperCase()}
-    Time: ${new Date().toISOString()}
-    `;
-
-    return this.sendEmail({
-      to: config.email.admin,
-      subject: `${priorityEmojis[priority]} System Alert: ${title}`,
-      html: htmlMessage,
-      text: textMessage
-    });
-  }
-
-  // Test email functionality
-  async testEmail(testRecipient?: string): Promise<{ success: boolean; results: any[] }> {
-    const recipient = testRecipient || config.email.testRecipient;
-    const results = [];
-
-    try {
-      // Test 1: Connection verification
-      console.log('🧪 Testing SMTP connection...');
-      const connectionResult = await this.verifyConnection();
-      results.push({ test: 'SMTP Connection', success: connectionResult });
-
-      // Test 2: Simple notification
-      console.log('🧪 Testing simple notification...');
-      const notificationResult = await this.sendNotification(
-        recipient,
-        'Test Email - Simple Notification',
-        'This is a test email from the VVG pain points platform.',
-        false
-      );
-      results.push({ test: 'Simple Notification', success: notificationResult.success });
-
-      // Test 3: HTML email
-      console.log('🧪 Testing HTML email...');
-      const htmlResult = await this.sendNotification(
-        recipient,
-        'Test Email - HTML Format',
-        '<h1>HTML Test</h1><p>This is a <strong>test HTML email</strong> from the platform.</p>',
-        true
-      );
-      results.push({ test: 'HTML Email', success: htmlResult.success });
-
-      // Test 4: System alert
-      console.log('🧪 Testing system alert...');
-      const alertResult = await this.sendSystemAlert(
-        'Email Service Test',
-        'This is a test system alert to verify the email functionality.',
-        'low'
-      );
-      results.push({ test: 'System Alert', success: alertResult.success });
-
-      const allSuccessful = results.every(r => r.success);
-      return { success: allSuccessful, results };
-
-    } catch (error) {
-      console.error('❌ Email testing failed:', error);
-      return { 
-        success: false, 
-        results: [...results, { test: 'Overall', success: false, error: error.message }] 
-      };
-    }
-  }
-
-  // PRESERVED TEMPLATE METHODS FROM ORIGINAL IMPLEMENTATION
   // Generate email subject based on pain point and priority
   private generateSubject(painPoint: PainPointEmailData, priority: PriorityLevel): string {
     const priorityPrefix = priority === 'critical' ? '🚨 CRITICAL' : 
@@ -388,7 +100,7 @@ export class EmailService {
     return `${priorityPrefix}: New Pain Point - ${painPoint.title}`;
   }
 
-  // Generate email template (PRESERVED from original - these templates are excellent!)
+  // Generate email template
   private generateEmailTemplate(data: EmailNotificationData & { aiAnalysis?: any }): EmailTemplate {
     const { painPoint, rule, actionUrl, aiAnalysis } = data;
     
@@ -560,7 +272,92 @@ If you have questions about this routing, please contact your system administrat
     };
   }
 
-  // Generate triage summary email template (PRESERVED from original)
+  // Send email using configured email service
+  private async sendEmail(recipients: string[], template: EmailTemplate): Promise<void> {
+    try {
+      // This is where you would integrate with your email service
+      // Examples: AWS SES, SendGrid, Mailgun, etc.
+      
+      if (process.env.NODE_ENV === 'production' && process.env.AWS_SES_REGION) {
+        // AWS SES integration would go here
+        await this.sendViaAWSSES(recipients, template);
+      } else {
+        // Development mode - just log
+        console.log('📧 Email would be sent to:', recipients);
+        console.log('📧 Subject:', template.subject);
+        console.log('📧 Text preview:', template.text.substring(0, 200) + '...');
+      }
+
+    } catch (error) {
+      console.error('Error sending email:', error);
+      throw error;
+    }
+  }
+
+  // AWS SES integration (placeholder for production)
+  private async sendViaAWSSES(recipients: string[], template: EmailTemplate): Promise<void> {
+    // This would integrate with AWS SES
+    // Example implementation would use AWS SDK
+    console.log('📧 [PRODUCTION] Sending via AWS SES to:', recipients);
+    
+    // Placeholder for actual AWS SES implementation
+    // const ses = new AWS.SES({ region: process.env.AWS_SES_REGION });
+    // const params = {
+    //   Source: process.env.FROM_EMAIL,
+    //   Destination: { ToAddresses: recipients },
+    //   Message: {
+    //     Subject: { Data: template.subject },
+    //     Body: {
+    //       Html: { Data: template.html },
+    //       Text: { Data: template.text }
+    //     }
+    //   }
+    // };
+    // await ses.sendEmail(params).promise();
+  }
+
+  // Send weekly triage summary email
+  async sendTriageSummary(
+    recipients: string[], 
+    summary: {
+      itemsProcessed: number;
+      itemsRouted: number;
+      itemsFlagged: number;
+      processingTime: number;
+      topCategories: Array<{category: string, count: number}>;
+      aiInsights?: {
+        averageConfidence: number;
+        sentimentBreakdown: {
+          positive: number;
+          neutral: number;
+          negative: number;
+        };
+        topAICategories: Array<{category: string, count: number}>;
+        processingStats: {
+          aiSuccessRate: number;
+          averageProcessingTime: number;
+        };
+      };
+    }
+  ): Promise<void> {
+    try {
+      const template = this.generateTriageSummaryTemplate(summary);
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('📧 [DEV MODE] Would send triage summary to:', recipients);
+        console.log('📧 Summary:', summary);
+        return;
+      }
+
+      await this.sendEmail(recipients, template);
+
+    } catch (error) {
+      console.error('Error sending triage summary:', error);
+      throw new Error(`Failed to send triage summary: ${error}`);
+    }
+  }
+
+  // Generate triage summary email template
   private generateTriageSummaryTemplate(summary: any): EmailTemplate {
     const htmlContent = `
 <!DOCTYPE html>
