@@ -22,18 +22,18 @@ const UpdateAITriageConfigSchema = z.object({
 });
 
 // Helper function to convert database row to API format
-function formatAITriageConfig(row: AITriageConfigRow): AITriageConfig {
+function formatAITriageConfig(row: any): AITriageConfig {
   return {
     id: row.id,
     enabled: row.enabled,
     scheduleCron: row.schedule_cron,
     lastRunAt: row.last_run_at ? row.last_run_at.toISOString() : null,
     nextRunAt: row.next_run_at ? row.next_run_at.toISOString() : null,
-    itemsProcessedLastRun: row.items_processed_last_run,
-    totalItemsProcessed: row.total_items_processed,
-    settings: typeof row.settings === 'string' ? JSON.parse(row.settings) : row.settings,
-    createdAt: row.created_at.toISOString(),
-    updatedAt: row.updated_at.toISOString()
+    itemsProcessedLastRun: row.items_processed_last_run || 0,
+    totalItemsProcessed: row.total_items_processed || 0, // Default to 0 if field doesn't exist
+    settings: typeof row.settings === 'string' && row.settings ? JSON.parse(row.settings) : (row.settings || {}),
+    createdAt: row.created_at ? row.created_at.toISOString() : new Date().toISOString(),
+    updatedAt: row.updated_at ? row.updated_at.toISOString() : new Date().toISOString()
   };
 }
 
@@ -84,9 +84,9 @@ export async function PUT(request: NextRequest) {
     const updateData = validationResult.data;
 
     // Get current configuration
-    const currentConfigResult = await executeQuery<AITriageConfigRow[]>(
-      'SELECT * FROM ai_triage_config ORDER BY id DESC LIMIT 1'
-    );
+    const currentConfigResult = await executeQuery<any[]>({
+      query: 'SELECT * FROM ai_triage_config ORDER BY id DESC LIMIT 1'
+    });
 
     if (currentConfigResult.length === 0) {
       const response: APIResponse = {
@@ -163,7 +163,7 @@ export async function PUT(request: NextRequest) {
     await executeQuery({ query: updateQuery, values: updateValues });
 
     // Fetch the updated configuration
-    const updatedConfigResult = await executeQuery<AITriageConfigRow[]>({
+    const updatedConfigResult = await executeQuery<any[]>({
       query: 'SELECT * FROM ai_triage_config WHERE id = ?',
       values: [configId]
     });
@@ -197,9 +197,9 @@ export async function PUT(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     // Fetch AI triage configuration
-    const configResult = await executeQuery<AITriageConfigRow[]>(
-      'SELECT * FROM ai_triage_config ORDER BY id DESC LIMIT 1'
-    );
+    const configResult = await executeQuery<any[]>({
+      query: 'SELECT * FROM ai_triage_config ORDER BY id DESC LIMIT 1'
+    });
 
     if (configResult.length === 0) {
       const response: APIResponse = {
@@ -212,6 +212,9 @@ export async function GET(request: NextRequest) {
       };
       return NextResponse.json(response, { status: 404 });
     }
+
+    // Debug: log the raw database result
+    console.log('Raw AI triage config from DB:', JSON.stringify(configResult[0], null, 2));
 
     const config = formatAITriageConfig(configResult[0]);
 

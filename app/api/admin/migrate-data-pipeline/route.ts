@@ -12,10 +12,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    console.log('Running data pipeline migration...');
+    const body = await request.json().catch(() => ({}));
+    const migrationFile = body.migrationFile || '003_create_data_pipeline_schema.sql';
+
+    console.log(`Running migration: ${migrationFile}...`);
     
     // Read the migration file
-    const migrationPath = join(process.cwd(), 'database', 'migrations', '003_create_data_pipeline_schema.sql');
+    const migrationPath = join(process.cwd(), 'database', 'migrations', migrationFile);
     const sql = readFileSync(migrationPath, 'utf8');
     
     // Remove comments and split into statements
