@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,22 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Search, Filter, Download, Edit, Eye, Trash2 } from 'lucide-react';
 
-// API Types
-interface PainPoint {
-  id: number;
-  title: string;
-  description: string;
-  category: 'Safety' | 'Efficiency' | 'Cost Savings' | 'Quality' | 'Other';
-  submitted_by: string;
-  department?: string;
-  location?: string;
-  status: 'pending' | 'under_review' | 'in_progress' | 'completed' | 'rejected';
-  upvotes: number;
-  downvotes: number;
-  created_at: string;
-  updated_at: string;
-}
-
 interface Idea {
   id: string;
   title: string;
@@ -33,7 +17,7 @@ interface Idea {
   submitter: string;
   submitterEmail: string;
   category: string;
-  status: 'pending' | 'under_review' | 'in_progress' | 'completed' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected' | 'in_progress';
   priority: 'low' | 'medium' | 'high' | 'critical';
   department: string;
   createdAt: string;
@@ -41,82 +25,82 @@ interface Idea {
   assignee?: string;
 }
 
-// API functions
-const fetchPainPoints = async (): Promise<PainPoint[]> => {
-  try {
-    const response = await fetch('/api/pain-points');
-    if (!response.ok) {
-      throw new Error('Failed to fetch pain points');
-    }
-    const result = await response.json();
-    return result.data || [];
-  } catch (error) {
-    console.error('Error fetching pain points:', error);
-    return [];
+const mockIdeas: Idea[] = [
+  {
+    id: '1',
+    title: 'Implement automated testing pipeline',
+    description: 'Set up CI/CD with comprehensive test coverage to reduce bugs in production.',
+    submitter: 'John Smith',
+    submitterEmail: 'john.smith@vvgtruck.com',
+    category: 'Tech',
+    status: 'approved',
+    priority: 'high',
+    department: 'Engineering',
+    createdAt: '2024-08-05T10:30:00Z',
+    votes: 15,
+    assignee: 'Sarah Johnson'
+  },
+  {
+    id: '2',
+    title: 'Redesign employee onboarding process',
+    description: 'Streamline the new hire experience with digital forms and automated workflows.',
+    submitter: 'Emily Davis',
+    submitterEmail: 'emily.davis@vvgtruck.com',
+    category: 'Process',
+    status: 'pending',
+    priority: 'medium',
+    department: 'HR',
+    createdAt: '2024-08-04T14:15:00Z',
+    votes: 12
+  },
+  {
+    id: '3',
+    title: 'Create mobile app for field technicians',
+    description: 'Develop a mobile solution for technicians to access work orders and update status.',
+    submitter: 'Mike Rodriguez',
+    submitterEmail: 'mike.rodriguez@vvgtruck.com',
+    category: 'Product',
+    status: 'in_progress',
+    priority: 'critical',
+    department: 'Product',
+    createdAt: '2024-08-03T09:45:00Z',
+    votes: 28,
+    assignee: 'Alex Chen'
+  },
+  {
+    id: '4',
+    title: 'Implement flexible work from home policy',
+    description: 'Allow employees to work remotely 2-3 days per week to improve work-life balance.',
+    submitter: 'Lisa Thompson',
+    submitterEmail: 'lisa.thompson@vvgtruck.com',
+    category: 'Culture',
+    status: 'rejected',
+    priority: 'low',
+    department: 'HR',
+    createdAt: '2024-08-02T16:20:00Z',
+    votes: 8
+  },
+  {
+    id: '5',
+    title: 'Upgrade server infrastructure',
+    description: 'Migrate to cloud-based infrastructure for better scalability and reliability.',
+    submitter: 'David Wilson',
+    submitterEmail: 'david.wilson@vvgtruck.com',
+    category: 'Tech',
+    status: 'approved',
+    priority: 'high',
+    department: 'IT',
+    createdAt: '2024-08-01T11:10:00Z',
+    votes: 22,
+    assignee: 'Mike Rodriguez'
   }
-};
-
-const updatePainPoint = async (id: number, updates: Partial<PainPoint>): Promise<PainPoint | null> => {
-  try {
-    const response = await fetch(`/api/pain-points/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(updates),
-    });
-    if (!response.ok) {
-      throw new Error('Failed to update pain point');
-    }
-    const result = await response.json();
-    return result.data;
-  } catch (error) {
-    console.error('Error updating pain point:', error);
-    return null;
-  }
-};
-
-const deletePainPoint = async (id: number): Promise<boolean> => {
-  try {
-    const response = await fetch(`/api/pain-points/${id}`, {
-      method: 'DELETE',
-    });
-    return response.ok;
-  } catch (error) {
-    console.error('Error deleting pain point:', error);
-    return false;
-  }
-};
-
-// Helper function to extract name from email
-const getNameFromEmail = (email: string): string => {
-  const name = email.split('@')[0];
-  return name.split('.').map(part => 
-    part.charAt(0).toUpperCase() + part.slice(1)
-  ).join(' ');
-};
-
-// Helper function to convert PainPoint to Idea for display
-const convertPainPointToIdea = (painPoint: PainPoint): Idea => ({
-  id: painPoint.id.toString(),
-  title: painPoint.title,
-  description: painPoint.description,
-  submitter: getNameFromEmail(painPoint.submitted_by),
-  submitterEmail: painPoint.submitted_by,
-  category: painPoint.category,
-  status: painPoint.status,
-  priority: painPoint.upvotes > 10 ? 'high' : painPoint.upvotes > 5 ? 'medium' : 'low',
-  department: painPoint.department || 'Unknown',
-  createdAt: painPoint.created_at,
-  votes: painPoint.upvotes + painPoint.downvotes,
-});
+];
 
 const statusColors = {
   pending: 'bg-yellow-100 text-yellow-800',
-  under_review: 'bg-blue-100 text-blue-800',
-  in_progress: 'bg-blue-100 text-blue-800',
-  completed: 'bg-green-100 text-green-800',
-  rejected: 'bg-red-100 text-red-800'
+  approved: 'bg-green-100 text-green-800',
+  rejected: 'bg-red-100 text-red-800',
+  in_progress: 'bg-blue-100 text-blue-800'
 };
 
 const priorityColors = {
@@ -127,28 +111,13 @@ const priorityColors = {
 };
 
 export default function IdeasManagement() {
-  const [painPoints, setPainPoints] = useState<PainPoint[]>([]);
-  const [ideas, setIdeas] = useState<Idea[]>([]);
+  const [ideas, setIdeas] = useState<Idea[]>(mockIdeas);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('createdAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [loading, setLoading] = useState(true);
-
-  // Load data on component mount
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      const data = await fetchPainPoints();
-      setPainPoints(data);
-      const convertedIdeas = data.map(convertPainPointToIdea);
-      setIdeas(convertedIdeas);
-      setLoading(false);
-    };
-    loadData();
-  }, []);
 
   const categories = Array.from(new Set(ideas.map(idea => idea.category)));
   const statuses = Array.from(new Set(ideas.map(idea => idea.status)));
@@ -213,50 +182,10 @@ export default function IdeasManagement() {
     setSelectedIds(newSelected);
   };
 
-  const handleBulkAction = async (action: string) => {
+  const handleBulkAction = (action: string) => {
     console.log(`Bulk action: ${action} on items:`, Array.from(selectedIds));
-    
-    if (action === 'approve') {
-      for (const id of selectedIds) {
-        await updatePainPoint(parseInt(id), { status: 'in_progress' });
-      }
-    } else if (action === 'reject') {
-      for (const id of selectedIds) {
-        await updatePainPoint(parseInt(id), { status: 'rejected' });
-      }
-    }
-    
-    // Reload data after bulk action
-    const data = await fetchPainPoints();
-    setPainPoints(data);
-    const convertedIdeas = data.map(convertPainPointToIdea);
-    setIdeas(convertedIdeas);
+    // Here you would implement the actual bulk actions
     setSelectedIds(new Set());
-  };
-
-  const handleEdit = async (id: string, updates: Partial<PainPoint>) => {
-    const result = await updatePainPoint(parseInt(id), updates);
-    if (result) {
-      // Reload data
-      const data = await fetchPainPoints();
-      setPainPoints(data);
-      const convertedIdeas = data.map(convertPainPointToIdea);
-      setIdeas(convertedIdeas);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    const confirmed = window.confirm('Are you sure you want to delete this pain point?');
-    if (confirmed) {
-      const success = await deletePainPoint(parseInt(id));
-      if (success) {
-        // Reload data
-        const data = await fetchPainPoints();
-        setPainPoints(data);
-        const convertedIdeas = data.map(convertPainPointToIdea);
-        setIdeas(convertedIdeas);
-      }
-    }
   };
 
   const formatDate = (dateString: string) => {
@@ -267,31 +196,20 @@ export default function IdeasManagement() {
     });
   };
 
-  if (loading) {
-    return (
-      <div className="space-y-6 p-6">
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading pain points...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Pain Points Management</h1>
-          <p className="text-gray-600">Manage and review all submitted pain points</p>
+          <h1 className="text-3xl font-bold">Ideas Management</h1>
+          <p className="text-gray-600">Manage and review all submitted ideas</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => console.log('Export')}>
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
-          <Button>Add Pain Point</Button>
+          <Button>Add Idea</Button>
         </div>
       </div>
 
@@ -303,7 +221,7 @@ export default function IdeasManagement() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
-                  placeholder="Search pain points..."
+                  placeholder="Search ideas..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -436,7 +354,7 @@ export default function IdeasManagement() {
                     <Badge variant="outline">{idea.category}</Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge className={statusColors[idea.status as keyof typeof statusColors]}>
+                    <Badge className={statusColors[idea.status]}>
                       {idea.status.replace('_', ' ')}
                     </Badge>
                   </TableCell>
@@ -454,11 +372,8 @@ export default function IdeasManagement() {
                       <Button size="sm" variant="outline">
                         <Eye className="h-4 w-4" />
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => console.log('Edit', idea.id)}>
+                      <Button size="sm" variant="outline">
                         <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => handleDelete(idea.id)}>
-                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </TableCell>
@@ -469,7 +384,7 @@ export default function IdeasManagement() {
           
           {filteredIdeas.length === 0 && (
             <div className="text-center py-8 text-gray-500">
-              No pain points found matching your criteria.
+              No ideas found matching your criteria.
             </div>
           )}
         </CardContent>

@@ -42,3 +42,41 @@ export interface ApiResponse<T = any> {
   error?: string;
   details?: string;
 }
+
+// Admin Dashboard Types
+export interface DashboardStats {
+  totalIdeas: number;
+  pendingReview: number;
+  approved: number;
+  rejected: number;
+  totalUsers: number;
+  activeUsers: number;
+}
+
+export interface StatusData {
+  name: string;
+  value: number;
+  color: string;
+}
+
+export interface CategoryData {
+  name: string;
+  count: number;
+  color: string;
+}
+
+export interface RecentIdea {
+  id: string;
+  title: string;
+  submitter: string;
+  status: string;
+  date: string;
+  category: string;
+}
+
+export interface DashboardData {
+  stats: DashboardStats;
+  statusData: StatusData[];
+  categoryData: CategoryData[];
+  recentIdeas: RecentIdea[];
+}

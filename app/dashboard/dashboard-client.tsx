@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, Button, StatNumber } from "@/components/ui";
 import { LoadingCard } from "@/components/ui/loading";
-import { FileUp, FileText, GitCompare, Download, RefreshCw, Lightbulb, BarChart3 } from "lucide-react";
+import { FileUp, FileText, GitCompare, Download, RefreshCw } from "lucide-react";
 import { PageContainer } from "@/components/page-container";
 import { PageTitle } from "@/components/page-title";
 import { useAuth } from "@/components/auth-guard";
@@ -11,7 +11,6 @@ import { DashboardStats, DashboardStatsResponse } from "@/types/dashboard";
 import { useApiData } from "@/lib/hooks";
 import { toast } from "@/lib/utils/toast";
 import { pagePath } from "@/lib/utils/path-utils";
-import PainPointsStats from "@/components/pain-points-stats";
 
 export default function DashboardClient() {
   const { session, isAuthenticated, user } = useAuth();
@@ -118,50 +117,49 @@ export default function DashboardClient() {
         </Card>
       </div>
 
-      {/* Pain Points Analytics Section */}
-      <PainPointsStats />
-
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>Manage pain points and templates</CardDescription>
+            <CardDescription>Common tasks for template analysis</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
             <Button 
               className="w-full justify-start" 
               size="lg"
-              onClick={() => router.push('/ideas')}
-            >
-              <Lightbulb className="mr-2 h-5 w-5" />
-              Submit Pain Point
-            </Button>
-            <Button 
-              className="w-full justify-start" 
-              size="lg" 
-              variant="outline"
-              onClick={() => router.push('/submissions')}
-            >
-              <BarChart3 className="mr-2 h-5 w-5" />
-              View All Submissions
-            </Button>
-            <Button 
-              className="w-full justify-start" 
-              size="lg" 
-              variant="outline"
-              onClick={() => router.push('/admin/ideas')}
-            >
-              <GitCompare className="mr-2 h-5 w-5" />
-              Admin Management
-            </Button>
-            <Button 
-              className="w-full justify-start" 
-              size="lg" 
-              variant="outline"
-              onClick={() => router.push('/upload')}
+              onClick={() => router.push(pagePath('/upload'))}
             >
               <FileUp className="mr-2 h-5 w-5" />
-              Upload Document
+              Upload Template Document
+            </Button>
+            <Button 
+              className="w-full justify-start" 
+              size="lg" 
+              variant="outline"
+              onClick={() => router.push(pagePath('/compare'))}
+            >
+              <GitCompare className="mr-2 h-5 w-5" />
+              Compare Templates
+            </Button>
+            <Button 
+              className="w-full justify-start" 
+              size="lg" 
+              variant="outline"
+              onClick={() => router.push(pagePath('/documents'))}
+            >
+              <FileText className="mr-2 h-5 w-5" />
+              View Documents
+            </Button>
+            <Button 
+              className="w-full justify-start" 
+              size="lg" 
+              variant="outline"
+              onClick={() => {
+                toast.info.custom("Feature coming soon", "Export functionality is being developed.");
+              }}
+            >
+              <Download className="mr-2 h-5 w-5" />
+              Export Results
             </Button>
           </CardContent>
         </Card>

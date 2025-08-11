@@ -1,79 +1,90 @@
-# Dependencies
-node_modules/
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.pnpm-debug.log*
 
-# Environment variables
+# local env files
+.env*.local
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.development
+.env.test
+.env.production
 
-# Next.js
-.next/
-out/
-build/
+# vercel
+.vercel
 
-# Production builds
-dist/
+# typescript
+*.tsbuildinfo
+next-env.d.ts
 
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
+# AWS credentials and config files
+.aws/
+aws.json
+aws-config.json
+aws-exports.js
 
-# Coverage directory used by tools like istanbul
-coverage/
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS specific files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Package manager lock files (uncomment if needed)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
 
 # Logs
 logs
 *.log
 
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
-
-# Optional npm cache directory
+# Cache directories
 .npm
-
-# Optional eslint cache
 .eslintcache
+.stylelintcache
 
-# Optional REPL history
-.node_repl_history
+# DynamoDB Local files
+.dynamodb/
 
-# Output of 'npm pack'
-*.tgz
+# Generated files
+/public/sitemap*.xml
+/public/robots.txt
+/public/feed.xml
 
-# Yarn Integrity file
-.yarn-integrity
+# Local storage (development only)
+.storage/ 
+# TypeScript
+tsconfig.tsbuildinfo
 
-# Development database
-.dev-db/
-
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# macOS
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Uploads directory
-uploads/
-
-# Local storage
-storage/
+# Sensitive environment files
+.env.docker
+.env.docker.production
+.env.local
+.env.staging
+.env.production

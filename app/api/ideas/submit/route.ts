@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { painPointsDb } from '@/lib/pain-points-db';
-import { getServerSession } from 'next-auth';
+import { executeQuery } from '@/lib/db';
 
 // Validation schema matching the frontend
 const ideaSubmissionSchema = z.object({
   name: z.string().min(2),
   department: z.string().min(1),
   location: z.string().min(1),
-  category: z.enum(['Safety', 'Efficiency', 'Cost Savings', 'Quality', 'Other']),
+  category: z.string().min(1),
   description: z.string().min(10),
-  title: z.string().min(5).optional(),
   attachment: z.any().optional(),
 });
 
@@ -21,32 +19,78 @@ export async function POST(request: NextRequest) {
     // Validate the request body
     const validatedData = ideaSubmissionSchema.parse(body);
     
-    // Get user session
-    const session = await getServerSession();
-    const userEmail = session?.user?.email || `${validatedData.name.toLowerCase().replace(' ', '.')}@vvg.com`;
+    // Create database insert query for pain_points table
+    const insertQuery = `
+      INSERT INTO pain_points (
+        title, 
+        description, 
+        category, 
+        submitted_by, 
+        department, 
+        location,
+        status,
+        upvotes,
+        downvotes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
     
-    // Create pain point in database
-    const painPoint = await painPointsDb.createPainPoint({
-      title: validatedData.title || `${validatedData.category} Improvement from ${validatedData.department}`,
-      description: validatedData.description,
-      category: validatedData.category,
-      submitted_by: userEmail,
-      department: validatedData.department,
-      location: validatedData.location,
+    const values = [
+      `Pain Point: ${validatedData.category}`, // title - we'll create a generic title
+      validatedData.description,
+      validatedData.category,
+      `${validatedData.name.toLowerCase().replace(/\s+/g, '.')}@vvg.com`, // submitted_by (email format)
+      validatedData.department,
+      validatedData.location,
+      'under_review', // status
+      0, // upvotes
+      0  // downvotes
+    ];
+    
+    // Save to database
+    const result: any = await executeQuery({
+      query: insertQuery,
+      values: values
     });
     
-    // Update/create user record
-    await painPointsDb.createOrUpdateUser({
-      email: userEmail,
-      name: validatedData.name,
-      department: validatedData.department,
-      location: validatedData.location,
+    // Get the database-generated ID
+    const painPointId = result.insertId;
+    
+    // Log submission for development
+    console.log('New pain point submitted to database:', {
+      id: painPointId,
+      ...validatedData
     });
+
+    // Trigger data pipeline routing for the new pain point
+    try {
+      const { routingEngine } = await import('@/lib/services/routing-engine');
+      
+      const painPointData = {
+        id: painPointId,
+        title: `Pain Point: ${validatedData.category}`,
+        description: validatedData.description,
+        category: validatedData.category,
+        submittedBy: `${validatedData.name.toLowerCase().replace(/\s+/g, '.')}@vvg.com`,
+        department: validatedData.department,
+        location: validatedData.location
+      };
+
+      // Process routing rules for this pain point
+      const routingResult = await routingEngine.executeRouting(painPointData);
+      
+      console.log('Pain point routing completed:', {
+        painPointId,
+        success: routingResult.success,
+        actionsTaken: routingResult.actionsTaken
+      });
+    } catch (routingError) {
+      // Don't fail the submission if routing fails
+      console.error('Pain point routing failed, but submission was successful:', routingError);
+    }
     
     return NextResponse.json({
       success: true,
-      id: painPoint.id,
-      data: painPoint,
+      id: painPointId,
       message: 'Pain point submitted successfully',
     });
   } catch (error) {
@@ -61,11 +105,11 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    console.error('Error submitting pain point:', error);
+    console.error('Error submitting idea:', error);
     return NextResponse.json(
       {
         success: false,
-        error: 'Failed to submit pain point',
+        error: 'Failed to submit idea',
       },
       { status: 500 }
     );

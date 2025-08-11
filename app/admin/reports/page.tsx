@@ -46,7 +46,13 @@ export default function ReportsPage() {
       setLoading(true);
       setError(null);
       
-      const response = await fetch('/api/admin/reports');
+      // Add dev bypass header in development
+      const headers: Record<string, string> = {};
+      if (process.env.NODE_ENV === 'development') {
+        headers['X-Dev-Bypass'] = 'true';
+      }
+      
+      const response = await fetch('/api/admin/reports', { headers });
       const result: ApiResponse<ReportsData> = await response.json();
       
       if (result.success && result.data) {

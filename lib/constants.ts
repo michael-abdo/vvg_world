@@ -12,9 +12,17 @@ export { config, APP_CONSTANTS } from './config';
 export { ApiErrors, FileValidation } from './utils';
 export { ApiResponseHelpers } from './auth-utils';
 
+// Database and template types
+export type { DocumentStatus, TaskType, QueueStatus } from './template';
+export { 
+  documentDb, 
+  // queueDb, // TODO: Create when needed
+  executeQuery,
+  getConnection
+} from './template';
 
 // Storage
-export { storage } from './storage';
+export { storage, templatePaths } from './storage';
 
 // Services
 export { Logger } from './services/logger';
@@ -25,12 +33,14 @@ export { RequestParser } from './services/request-parser';
 export { 
   withAuth, 
   withAuthDynamic, 
+  withDocumentAccess,
   withErrorHandler,
   withStorage
 } from './auth-utils';
 
 // Utility functions
 export { 
+  isDocumentOwner, 
   getFilenameFromPath,
   cn
 } from './utils';
@@ -45,3 +55,4 @@ export {
 
 // Types
 export type { DocumentContent, ProcessFileOptions, ProcessFileResult } from './text-extraction';
+export type { TemplateDocumentRow } from './template/types';

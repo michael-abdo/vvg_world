@@ -7,11 +7,23 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Plus, Edit, Trash2, Users, Mail, Shield, Settings2, GitBranch, Bot, ArrowRight, Zap } from 'lucide-react';
+import { useRoutingRules } from '@/lib/hooks/useRoutingRules';
+import { useAIRules } from '@/lib/hooks/useAIRules';
+import { useAITriage } from '@/lib/hooks/useAITriage';
+import { useToast } from '@/components/ui/use-toast';
+import { EditRoutingRuleDialog } from '@/components/forms/EditRoutingRuleDialog';
+import { EditAIRuleDialog } from '@/components/forms/EditAIRuleDialog';
+import { EditAITriageConfigDialog } from '@/components/forms/EditAITriageConfigDialog';
+import { CategoryMultiSelect } from '@/components/forms/CategoryMultiSelect';
+import { DepartmentMultiSelect } from '@/components/forms/DepartmentMultiSelect';
+import { MultiSelectPills } from '@/components/ui/multi-select-pills';
+import { RoutingRule, UpdateRoutingRuleRequest, AIRule, UpdateAIRuleRequest, AITriageConfig, UpdateAITriageConfigRequest } from '@/lib/types/data-pipeline';
 
 // Mock data
 const departments = [
@@ -52,94 +64,379 @@ const notifications = [
   { id: '5', name: 'Monthly Report', enabled: false, frequency: 'monthly', recipients: 'admins' }
 ];
 
-const routingRules = [
-  { 
-    id: '1', 
-    name: 'Safety Critical Issues',
-    category: 'Safety',
-    department: 'All',
-    stakeholders: ['safety@vvgtruck.com', 'compliance@vvgtruck.com'],
-    priority: 'high',
-    autoRoute: true,
-    active: true
-  },
-  { 
-    id: '2', 
-    name: 'Engineering Features',
-    category: 'Tech',
-    department: 'Engineering',
-    stakeholders: ['engineering-leads@vvgtruck.com', 'john.smith@vvgtruck.com'],
-    priority: 'medium',
-    autoRoute: true,
-    active: true
-  },
-  { 
-    id: '3', 
-    name: 'HR Culture Initiatives',
-    category: 'Culture',
-    department: 'HR',
-    stakeholders: ['hr-team@vvgtruck.com', 'emily.davis@vvgtruck.com'],
-    priority: 'medium',
-    autoRoute: true,
-    active: true
-  },
-  { 
-    id: '4', 
-    name: 'Product Improvements',
-    category: 'Product',
-    department: 'Product',
-    stakeholders: ['product@vvgtruck.com', 'sarah.johnson@vvgtruck.com'],
-    priority: 'high',
-    autoRoute: true,
-    active: true
-  }
-];
 
-const aiRules = [
-  {
-    id: '1',
-    name: 'Safety Keyword Detection',
-    trigger: 'Contains keywords: hazard, danger, safety, accident, injury',
-    action: 'escalate',
-    target: 'safety@vvgtruck.com',
-    priority: 'critical',
-    active: true,
-    lastTriggered: '2024-08-05'
-  },
-  {
-    id: '2',
-    name: 'Cost Reduction Ideas',
-    trigger: 'Contains keywords: save money, reduce cost, efficiency, optimize',
-    action: 'tag',
-    target: 'cost-reduction',
-    priority: 'high',
-    active: true,
-    lastTriggered: '2024-08-04'
-  },
-  {
-    id: '3',
-    name: 'Duplicate Detection',
-    trigger: 'Similar to existing ideas (>80% similarity)',
-    action: 'flag',
-    target: 'duplicate-review',
-    priority: 'medium',
-    active: true,
-    lastTriggered: '2024-08-06'
-  },
-  {
-    id: '4',
-    name: 'Low Quality Filter',
-    trigger: 'Less than 50 characters OR no clear description',
-    action: 'hold',
-    target: 'needs-clarification',
-    priority: 'low',
-    active: false,
-    lastTriggered: '2024-08-01'
-  }
-];
+// AI Rule trigger type display mappings
+const triggerTypeDisplay = {
+  keywords: 'Contains keywords',
+  similarity: 'Similar to existing ideas',
+  sentiment: 'Negative sentiment',
+  length: 'Content length',
+  custom: 'Custom AI analysis'
+};
+
+// Action type display mappings
+const actionTypeDisplay = {
+  escalate: 'Escalate to email',
+  tag: 'Add tag',
+  flag: 'Flag for review', 
+  hold: 'Hold for clarification',
+  ignore: 'Ignore/archive',
+  route: 'Route to department'
+};
 
 export default function SettingsPage() {
-  const [selectedTab, setSelectedTab] = useState('departments');
+  const [selectedTab, setSelectedTab] = useState('routing');
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createAIRuleDialogOpen, setCreateAIRuleDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingRule, setEditingRule] = useState<RoutingRule | null>(null);
+  const [editAIRuleDialogOpen, setEditAIRuleDialogOpen] = useState(false);
+  const [editingAIRule, setEditingAIRule] = useState<AIRule | null>(null);
+  const [editAITriageConfigDialogOpen, setEditAITriageConfigDialogOpen] = useState(false);
+  const { toast } = useToast();
+  
+  // Form state for creating new routing rule
+  const [newRule, setNewRule] = useState({
+    name: '',
+    category: [] as string[],
+    department: [] as string[],
+    stakeholders: '',
+    priority: 'medium',
+    autoRoute: true
+  });
+  
+  // Form state for creating new AI rule
+  const [newAIRule, setNewAIRule] = useState({
+    name: '',
+    triggerPrompt: '',
+    actionType: 'send_email' as const,
+    actionTarget: '',
+    priority: 'medium' as const,
+    active: true
+  });
+  
+  // Data Pipeline hooks
+  const { 
+    rules: routingRules, 
+    loading: routingRulesLoading, 
+    error: routingRulesError,
+    toggleRule,
+    deleteRule,
+    createRule,
+    updateRule,
+    creating: creatingRule,
+    updating: updatingRule,
+    deleting: deletingRule
+  } = useRoutingRules();
+  
+  const { 
+    status: aiTriageStatus, 
+    loading: aiTriageLoading, 
+    error: aiTriageError,
+    triggerTriage,
+    triggering: triggeringTriage,
+    updateConfig,
+    updatingConfig
+  } = useAITriage();
+  
+  // AI Rules hooks
+  const {
+    rules: aiRules,
+    loading: aiRulesLoading,
+    error: aiRulesError,
+    createRule: createAIRule,
+    toggleRule: toggleAIRule,
+    deleteRule: deleteAIRule,
+    creating: creatingAIRule,
+    updating: updatingAIRule,
+    deleting: deletingAIRule
+  } = useAIRules();
+  
+  // Handle form submission
+  const handleCreateRule = async () => {
+    // Validate form
+    if (!newRule.name.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter a rule name",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (newRule.category.length === 0) {
+      toast({
+        title: "Validation Error",
+        description: "Please select at least one category",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (newRule.department.length === 0) {
+      toast({
+        title: "Validation Error",
+        description: "Please select at least one department",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!newRule.stakeholders.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter at least one stakeholder email",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Parse stakeholders
+    const stakeholderEmails = newRule.stakeholders
+      .split(',')
+      .map(email => email.trim())
+      .filter(email => email.length > 0);
+    
+    // Validate emails
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    for (const email of stakeholderEmails) {
+      if (!emailRegex.test(email)) {
+        toast({
+          title: "Validation Error",
+          description: `Invalid email: ${email}`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    
+    try {
+      const result = await createRule({
+        name: newRule.name,
+        category: newRule.category,
+        department: newRule.department,
+        stakeholders: stakeholderEmails,
+        priority: newRule.priority as 'low' | 'medium' | 'high' | 'critical',
+        autoRoute: newRule.autoRoute
+      });
+      
+      if (result) {
+        // Show success toast
+        toast({
+          title: "Success",
+          description: `Routing rule "${result.name}" created successfully.`,
+        });
+        
+        // Reset form and close dialog
+        setNewRule({
+          name: '',
+          category: [],
+          department: [],
+          stakeholders: '',
+          priority: 'medium',
+          autoRoute: true
+        });
+        setCreateDialogOpen(false);
+      } else {
+        // Show error toast
+        toast({
+          title: "Error",
+          description: "Failed to create routing rule. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      // Show error toast
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      });
+      console.error('Failed to create routing rule:', error);
+    }
+  };
+
+  // Handle AI rule creation
+  const handleCreateAIRule = async () => {
+    // Validate form
+    if (!newAIRule.name.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter a rule name",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!newAIRule.triggerPrompt.trim() || newAIRule.triggerPrompt.trim().length < 10) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter a meaningful trigger prompt (at least 10 characters)",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!newAIRule.actionTarget.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter an action target",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    try {
+      const result = await createAIRule({
+        name: newAIRule.name,
+        triggerPrompt: newAIRule.triggerPrompt,
+        actionType: newAIRule.actionType,
+        actionTarget: newAIRule.actionTarget,
+        priority: newAIRule.priority,
+        active: newAIRule.active
+      });
+      
+      if (result) {
+        // Show success toast
+        toast({
+          title: "Success",
+          description: `AI rule "${result.name}" created successfully.`,
+        });
+        
+        // Reset form and close dialog
+        setNewAIRule({
+          name: '',
+          triggerPrompt: '',
+          actionType: 'send_email',
+          actionTarget: '',
+          priority: 'medium',
+          active: true
+        });
+        setCreateAIRuleDialogOpen(false);
+      } else {
+        // Show error toast
+        toast({
+          title: "Error",
+          description: "Failed to create AI rule. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      // Show error toast
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      });
+      console.error('Failed to create AI rule:', error);
+    }
+  };
+
+  // Handle edit routing rule
+  const handleEditRule = async (updates: UpdateRoutingRuleRequest) => {
+    try {
+      const result = await updateRule(updates.id, updates);
+      
+      if (result) {
+        // Show success toast
+        toast({
+          title: "Success",
+          description: `Routing rule "${result.name}" updated successfully.`,
+        });
+        
+        // Close dialog and clear editing state
+        setEditDialogOpen(false);
+        setEditingRule(null);
+      } else {
+        // Show error toast
+        toast({
+          title: "Error",
+          description: "Failed to update routing rule. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      // Show error toast
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      });
+      console.error('Failed to update routing rule:', error);
+    }
+  };
+
+  // Handle edit button click
+  const handleEditButtonClick = (rule: RoutingRule) => {
+    setEditingRule(rule);
+    setEditDialogOpen(true);
+  };
+
+  // AI Rules edit handlers
+  const handleEditAIRuleButtonClick = (rule: AIRule) => {
+    setEditingAIRule(rule);
+    setEditAIRuleDialogOpen(true);
+  };
+
+  const handleEditAIRule = async (updates: UpdateAIRuleRequest) => {
+    try {
+      const result = await updateAIRule(updates.id, updates);
+      
+      if (result) {
+        toast({
+          title: "Success",
+          description: `AI rule "${result.name}" updated successfully.`,
+        });
+        setEditAIRuleDialogOpen(false);
+        setEditingAIRule(null);
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to update AI rule.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error updating AI rule:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update AI rule.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // AI Triage config edit handlers
+  const handleEditAITriageConfigButtonClick = () => {
+    setEditAITriageConfigDialogOpen(true);
+  };
+
+  const handleEditAITriageConfig = async (updates: UpdateAITriageConfigRequest) => {
+    try {
+      const result = await updateConfig(updates);
+      
+      if (result) {
+        toast({
+          title: "Success",
+          description: "AI triage configuration updated successfully.",
+        });
+        setEditAITriageConfigDialogOpen(false);
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to update AI triage configuration.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error updating AI triage config:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update AI triage configuration.",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <div className="space-y-6 p-6">
@@ -152,145 +449,10 @@ export default function SettingsPage() {
       </div>
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-6">
-          <TabsTrigger value="departments">Departments</TabsTrigger>
-          <TabsTrigger value="categories">Categories</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="routing">Data Pipeline</TabsTrigger>
           <TabsTrigger value="ai-rules">AI Rules</TabsTrigger>
-          <TabsTrigger value="users">Users & Roles</TabsTrigger>
-          <TabsTrigger value="notifications">Notifications</TabsTrigger>
         </TabsList>
-
-        {/* Departments Tab */}
-        <TabsContent value="departments" className="space-y-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <div>
-                <CardTitle>Department Management</CardTitle>
-                <CardDescription>Organize your company structure and hierarchy</CardDescription>
-              </div>
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Department
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add New Department</DialogTitle>
-                    <DialogDescription>Create a new department in your organization</DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="dept-name">Department Name</Label>
-                      <Input id="dept-name" placeholder="Enter department name" />
-                    </div>
-                    <div>
-                      <Label htmlFor="parent-dept">Parent Department (Optional)</Label>
-                      <Select>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select parent department" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {departments.filter(d => !d.parent).map(dept => (
-                            <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline">Cancel</Button>
-                      <Button>Create Department</Button>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Department</TableHead>
-                    <TableHead>Parent</TableHead>
-                    <TableHead>Members</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {departments.map((dept) => (
-                    <TableRow key={dept.id}>
-                      <TableCell className="font-medium">{dept.name}</TableCell>
-                      <TableCell>{dept.parent || '-'}</TableCell>
-                      <TableCell>{dept.members}</TableCell>
-                      <TableCell>
-                        <Badge variant={dept.active ? 'default' : 'secondary'}>
-                          {dept.active ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button size="sm" variant="outline">
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button size="sm" variant="outline">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Categories Tab */}
-        <TabsContent value="categories" className="space-y-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <div>
-                <CardTitle>Category Configuration</CardTitle>
-                <CardDescription>Manage idea categories and their properties</CardDescription>
-              </div>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Category
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {categories.map((category) => (
-                  <Card key={category.id}>
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <div 
-                            className="w-4 h-4 rounded-full" 
-                            style={{ backgroundColor: category.color }}
-                          />
-                          <h3 className="font-semibold">{category.name}</h3>
-                        </div>
-                        <Badge variant="outline">{category.count} ideas</Badge>
-                      </div>
-                      <p className="text-sm text-gray-600 mb-4">{category.description}</p>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline">
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button size="sm" variant="outline">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         {/* Data Pipeline Tab */}
         <TabsContent value="routing" className="space-y-4">
@@ -300,7 +462,7 @@ export default function SettingsPage() {
                 <CardTitle>Data Pipeline & Routing Rules</CardTitle>
                 <CardDescription>Configure automatic routing to stakeholders based on categories and departments</CardDescription>
               </div>
-              <Dialog>
+              <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
                 <DialogTrigger asChild>
                   <Button>
                     <Plus className="h-4 w-4 mr-2" />
@@ -315,44 +477,48 @@ export default function SettingsPage() {
                   <div className="space-y-4">
                     <div>
                       <Label htmlFor="rule-name">Rule Name</Label>
-                      <Input id="rule-name" placeholder="e.g., Safety Critical Issues" />
+                      <Input 
+                        id="rule-name" 
+                        placeholder="e.g., Safety Critical Issues" 
+                        value={newRule.name}
+                        onChange={(e) => setNewRule({...newRule, name: e.target.value})}
+                      />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <Label htmlFor="category">Category</Label>
-                        <Select>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select category" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {categories.map(cat => (
-                              <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Label>Categories</Label>
+                        <CategoryMultiSelect
+                          selected={newRule.category}
+                          onChange={(selected) => setNewRule({...newRule, category: selected})}
+                          disabled={creatingRule}
+                          placeholder="Select categories..."
+                        />
                       </div>
                       <div>
-                        <Label htmlFor="department">Department</Label>
-                        <Select>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select department" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Departments</SelectItem>
-                            {departments.filter(d => !d.parent).map(dept => (
-                              <SelectItem key={dept.id} value={dept.name}>{dept.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Label>Departments</Label>
+                        <DepartmentMultiSelect
+                          selected={newRule.department}
+                          onChange={(selected) => setNewRule({...newRule, department: selected})}
+                          disabled={creatingRule}
+                          placeholder="Select departments..."
+                        />
                       </div>
                     </div>
                     <div>
                       <Label htmlFor="stakeholders">Stakeholder Emails (comma-separated)</Label>
-                      <Input id="stakeholders" placeholder="safety@vvgtruck.com, compliance@vvgtruck.com" />
+                      <Input 
+                        id="stakeholders" 
+                        placeholder="safety@vvgtruck.com, compliance@vvgtruck.com" 
+                        value={newRule.stakeholders}
+                        onChange={(e) => setNewRule({...newRule, stakeholders: e.target.value})}
+                      />
                     </div>
                     <div>
                       <Label htmlFor="priority">Priority</Label>
-                      <Select>
+                      <Select 
+                        value={newRule.priority}
+                        onValueChange={(value) => setNewRule({...newRule, priority: value})}
+                      >
                         <SelectTrigger>
                           <SelectValue placeholder="Select priority" />
                         </SelectTrigger>
@@ -365,12 +531,27 @@ export default function SettingsPage() {
                       </Select>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <Switch id="auto-route" />
+                      <Switch 
+                        id="auto-route" 
+                        checked={newRule.autoRoute}
+                        onCheckedChange={(checked) => setNewRule({...newRule, autoRoute: checked})}
+                      />
                       <Label htmlFor="auto-route">Enable automatic routing</Label>
                     </div>
                     <div className="flex justify-end gap-2">
-                      <Button variant="outline">Cancel</Button>
-                      <Button>Create Rule</Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setCreateDialogOpen(false)}
+                        disabled={creatingRule}
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        onClick={handleCreateRule}
+                        disabled={creatingRule}
+                      >
+                        {creatingRule ? 'Creating...' : 'Create Rule'}
+                      </Button>
                     </div>
                   </div>
                 </DialogContent>
@@ -378,7 +559,19 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {routingRules.map((rule) => (
+                {routingRulesLoading && (
+                  <div className="flex items-center justify-center p-8">
+                    <div className="text-sm text-gray-500">Loading routing rules...</div>
+                  </div>
+                )}
+                
+                {routingRulesError && (
+                  <div className="flex items-center justify-center p-8">
+                    <div className="text-sm text-red-500">Error: {routingRulesError}</div>
+                  </div>
+                )}
+                
+                {!routingRulesLoading && !routingRulesError && routingRules.map((rule) => (
                   <div key={rule.id} className="border rounded-lg p-4">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -391,10 +584,24 @@ export default function SettingsPage() {
                             <Badge className="bg-green-100 text-green-800">Active</Badge>
                           )}
                         </div>
-                        <div className="space-y-1 text-sm text-gray-600">
+                        <div className="space-y-2 text-sm text-gray-600">
                           <div className="flex items-center gap-2">
                             <GitBranch className="h-4 w-4" />
-                            <span>Category: {rule.category} • Department: {rule.department}</span>
+                            <span>Categories:</span>
+                            <MultiSelectPills
+                              items={rule.category.map(cat => ({ value: cat, label: cat }))}
+                              onRemove={() => {}} // Read-only display
+                              className="gap-1"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <GitBranch className="h-4 w-4" />
+                            <span>Departments:</span>
+                            <MultiSelectPills
+                              items={rule.department.map(dept => ({ value: dept, label: dept }))}
+                              onRemove={() => {}} // Read-only display
+                              className="gap-1"
+                            />
                           </div>
                           <div className="flex items-center gap-2">
                             <Mail className="h-4 w-4" />
@@ -403,53 +610,67 @@ export default function SettingsPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Switch checked={rule.active} />
-                        <Button size="sm" variant="outline">
+                        <Switch 
+                          checked={rule.active} 
+                          onCheckedChange={async (active) => {
+                            const result = await toggleRule(rule.id, active);
+                            if (result) {
+                              toast({
+                                title: "Success",
+                                description: `Routing rule "${rule.name}" ${active ? 'enabled' : 'disabled'}.`,
+                              });
+                            } else {
+                              toast({
+                                title: "Error",
+                                description: "Failed to update routing rule.",
+                                variant: "destructive",
+                              });
+                            }
+                          }}
+                          disabled={updatingRule}
+                        />
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          disabled={updatingRule}
+                          onClick={() => handleEditButtonClick(rule)}
+                        >
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button size="sm" variant="outline">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          disabled={deletingRule}
+                          onClick={async () => {
+                            if (confirm(`Are you sure you want to delete "${rule.name}"?`)) {
+                              const success = await deleteRule(rule.id);
+                              if (success) {
+                                toast({
+                                  title: "Success",
+                                  description: `Routing rule "${rule.name}" deleted successfully.`,
+                                });
+                              } else {
+                                toast({
+                                  title: "Error",
+                                  description: "Failed to delete routing rule.",
+                                  variant: "destructive",
+                                });
+                              }
+                            }
+                          }}
+                        >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
                   </div>
                 ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>AI Weekly Triage</CardTitle>
-              <CardDescription>Configure the AI bot that automatically triages submissions every week</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <h3 className="font-medium">Weekly AI Triage</h3>
-                    <p className="text-sm text-gray-500">Runs every Monday at 9:00 AM</p>
+                
+                {!routingRulesLoading && !routingRulesError && routingRules.length === 0 && (
+                  <div className="flex items-center justify-center p-8">
+                    <div className="text-sm text-gray-500">No routing rules configured</div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <Badge className="bg-blue-100 text-blue-800">
-                      <Bot className="h-3 w-3 mr-1" />
-                      AI Powered
-                    </Badge>
-                    <Switch checked={true} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div className="p-3 bg-gray-50 rounded-lg">
-                    <div className="font-medium mb-1">Last Run</div>
-                    <div className="text-gray-600">Aug 5, 2024 - 9:00 AM</div>
-                    <div className="text-gray-500">Processed 47 ideas</div>
-                  </div>
-                  <div className="p-3 bg-gray-50 rounded-lg">
-                    <div className="font-medium mb-1">Next Run</div>
-                    <div className="text-gray-600">Aug 12, 2024 - 9:00 AM</div>
-                    <div className="text-gray-500">23 ideas pending</div>
-                  </div>
-                </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -463,7 +684,7 @@ export default function SettingsPage() {
                 <CardTitle>AI-Powered Rules Engine</CardTitle>
                 <CardDescription>Configure AI to automatically detect patterns and route or flag submissions</CardDescription>
               </div>
-              <Dialog>
+              <Dialog open={createAIRuleDialogOpen} onOpenChange={setCreateAIRuleDialogOpen}>
                 <DialogTrigger asChild>
                   <Button>
                     <Plus className="h-4 w-4 mr-2" />
@@ -478,52 +699,70 @@ export default function SettingsPage() {
                   <div className="space-y-4">
                     <div>
                       <Label htmlFor="ai-rule-name">Rule Name</Label>
-                      <Input id="ai-rule-name" placeholder="e.g., Safety Keyword Detection" />
+                      <Input 
+                        id="ai-rule-name" 
+                        placeholder="e.g., Safety Keyword Detection" 
+                        value={newAIRule.name}
+                        onChange={(e) => setNewAIRule({...newAIRule, name: e.target.value})}
+                      />
                     </div>
                     <div>
-                      <Label htmlFor="trigger">Trigger Condition</Label>
-                      <Select>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select trigger type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="keywords">Contains Keywords</SelectItem>
-                          <SelectItem value="similarity">Similar to Existing</SelectItem>
-                          <SelectItem value="sentiment">Negative Sentiment</SelectItem>
-                          <SelectItem value="length">Content Length</SelectItem>
-                          <SelectItem value="custom">Custom AI Analysis</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="trigger-details">Trigger Details</Label>
-                      <Input id="trigger-details" placeholder="e.g., safety, hazard, danger, accident" />
+                      <Label htmlFor="trigger-prompt">AI Classification Prompt</Label>
+                      <Textarea 
+                        id="trigger-prompt" 
+                        placeholder="Describe when this rule should trigger. For example: 'Classify messages about safety concerns, accidents, or hazardous conditions' or 'Identify cost-saving suggestions or budget optimization ideas'"
+                        value={newAIRule.triggerPrompt}
+                        onChange={(e) => setNewAIRule({...newAIRule, triggerPrompt: e.target.value})}
+                        rows={3}
+                        className="min-h-[80px]"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Write a clear description of when this rule should trigger. The AI will use this to classify incoming messages.
+                      </p>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <Label htmlFor="action">Action</Label>
-                        <Select>
+                        <Label htmlFor="action">Action Type</Label>
+                        <Select 
+                          value={newAIRule.actionType} 
+                          onValueChange={(value: any) => setNewAIRule({...newAIRule, actionType: value})}
+                        >
                           <SelectTrigger>
                             <SelectValue placeholder="Select action" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="escalate">Escalate to Email</SelectItem>
-                            <SelectItem value="tag">Add Tag</SelectItem>
-                            <SelectItem value="flag">Flag for Review</SelectItem>
-                            <SelectItem value="hold">Hold for Clarification</SelectItem>
-                            <SelectItem value="ignore">Ignore/Archive</SelectItem>
-                            <SelectItem value="route">Route to Department</SelectItem>
+                            <SelectItem value="send_email">Send Email</SelectItem>
+                            <SelectItem value="add_tag">Add Tag</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                       <div>
-                        <Label htmlFor="target">Target</Label>
-                        <Input id="target" placeholder="Email or tag name" />
+                        <Label htmlFor="target">
+                          {newAIRule.actionType === 'add_tag' ? 'Tag Name' : 'Email Address'}
+                        </Label>
+                        <Input 
+                          id="target" 
+                          placeholder={newAIRule.actionType === 'add_tag' 
+                            ? "e.g., safety-urgent, cost-reduction" 
+                            : "e.g., admin@vvgtruck.com, safety@vvgtruck.com"
+                          }
+                          value={newAIRule.actionTarget}
+                          onChange={(e) => setNewAIRule({...newAIRule, actionTarget: e.target.value})}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {newAIRule.actionType === 'add_tag' 
+                            ? 'Enter the tag name to add to matching messages'
+                            : 'Enter the email address to notify when this rule triggers'
+                          }
+                        </p>
                       </div>
                     </div>
                     <div>
                       <Label htmlFor="ai-priority">Priority</Label>
-                      <Select>
+                      <Select 
+                        value={newAIRule.priority} 
+                        onValueChange={(value: any) => setNewAIRule({...newAIRule, priority: value})}
+                      >
                         <SelectTrigger>
                           <SelectValue placeholder="Select priority" />
                         </SelectTrigger>
@@ -536,8 +775,19 @@ export default function SettingsPage() {
                       </Select>
                     </div>
                     <div className="flex justify-end gap-2">
-                      <Button variant="outline">Cancel</Button>
-                      <Button>Create Rule</Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setCreateAIRuleDialogOpen(false)}
+                        disabled={creatingAIRule}
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        onClick={handleCreateAIRule}
+                        disabled={creatingAIRule}
+                      >
+                        {creatingAIRule ? 'Creating...' : 'Create Rule'}
+                      </Button>
                     </div>
                   </div>
                 </DialogContent>
@@ -545,7 +795,19 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {aiRules.map((rule) => (
+                {aiRulesLoading && (
+                  <div className="flex items-center justify-center p-8">
+                    <div className="text-sm text-gray-500">Loading AI rules...</div>
+                  </div>
+                )}
+                
+                {aiRulesError && (
+                  <div className="flex items-center justify-center p-8">
+                    <div className="text-sm text-red-500">Error: {aiRulesError}</div>
+                  </div>
+                )}
+                
+                {!aiRulesLoading && !aiRulesError && aiRules.map((rule) => (
                   <div key={rule.id} className="border rounded-lg p-4">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -567,31 +829,182 @@ export default function SettingsPage() {
                           <div className="flex items-center gap-2 text-gray-600">
                             <Zap className="h-4 w-4" />
                             <span className="font-medium">Trigger:</span>
-                            <span>{rule.trigger}</span>
+                            <span>{triggerTypeDisplay[rule.triggerType]}: {rule.triggerDetails}</span>
                           </div>
                           <div className="flex items-center gap-2 text-gray-600">
                             <ArrowRight className="h-4 w-4" />
                             <span className="font-medium">Action:</span>
-                            <span className="capitalize">{rule.action} → {rule.target}</span>
+                            <span className="capitalize">{actionTypeDisplay[rule.actionType]} → {rule.actionTarget}</span>
                           </div>
                           <div className="text-gray-500">
-                            Last triggered: {rule.lastTriggered}
+                            Last triggered: {rule.lastTriggeredAt ? new Date(rule.lastTriggeredAt).toLocaleDateString() : 'Never'}
+                          </div>
+                          <div className="text-gray-500">
+                            Triggered {rule.triggerCount} times
                           </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Switch checked={rule.active} />
-                        <Button size="sm" variant="outline">
+                        <Switch 
+                          checked={rule.active} 
+                          onCheckedChange={async (active) => {
+                            const result = await toggleAIRule(rule.id, active);
+                            if (result) {
+                              toast({
+                                title: "Success",
+                                description: `AI rule "${rule.name}" ${active ? 'enabled' : 'disabled'}.`,
+                              });
+                            } else {
+                              toast({
+                                title: "Error",
+                                description: "Failed to update AI rule.",
+                                variant: "destructive",
+                              });
+                            }
+                          }}
+                          disabled={updatingAIRule}
+                        />
+                        <Button size="sm" variant="outline" onClick={() => handleEditAIRuleButtonClick(rule)} disabled={updatingAIRule}>
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button size="sm" variant="outline">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          disabled={deletingAIRule}
+                          onClick={async () => {
+                            if (confirm(`Are you sure you want to delete "${rule.name}"?`)) {
+                              const success = await deleteAIRule(rule.id);
+                              if (success) {
+                                toast({
+                                  title: "Success",
+                                  description: `AI rule "${rule.name}" deleted successfully.`,
+                                });
+                              } else {
+                                toast({
+                                  title: "Error",
+                                  description: "Failed to delete AI rule.",
+                                  variant: "destructive",
+                                });
+                              }
+                            }
+                          }}
+                        >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
                   </div>
                 ))}
+                
+                {!aiRulesLoading && !aiRulesError && aiRules.length === 0 && (
+                  <div className="flex items-center justify-center p-8">
+                    <div className="text-sm text-gray-500">No AI rules configured</div>
+                  </div>
+                )}
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>AI Weekly Triage</CardTitle>
+              <CardDescription>Configure the AI bot that automatically triages submissions every week</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {aiTriageLoading && (
+                <div className="flex items-center justify-center p-8">
+                  <div className="text-sm text-gray-500">Loading AI triage status...</div>
+                </div>
+              )}
+              
+              {aiTriageError && (
+                <div className="flex items-center justify-center p-8">
+                  <div className="text-sm text-red-500">Error: {aiTriageError}</div>
+                </div>
+              )}
+              
+              {!aiTriageLoading && !aiTriageError && aiTriageStatus && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <h3 className="font-medium">Weekly AI Triage</h3>
+                      <p className="text-sm text-gray-500">
+                        {aiTriageStatus.config.scheduleCron === '0 9 * * 1' 
+                          ? 'Runs every Monday at 9:00 AM' 
+                          : `Schedule: ${aiTriageStatus.config.scheduleCron}`}
+                      </p>
+                      {aiTriageStatus.isRunning && (
+                        <p className="text-sm text-blue-600 font-medium">Currently running...</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <Badge className="bg-blue-100 text-blue-800">
+                        <Bot className="h-3 w-3 mr-1" />
+                        AI Powered
+                      </Badge>
+                      <Switch 
+                        checked={aiTriageStatus.config.enabled} 
+                        disabled={true}
+                      />
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={handleEditAITriageConfigButtonClick}
+                      >
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        onClick={async () => {
+                          const result = await triggerTriage();
+                          if (result) {
+                            toast({
+                              title: "AI Triage Started",
+                              description: "The AI triage process has been triggered and is now running.",
+                            });
+                          } else {
+                            toast({
+                              title: "Error",
+                              description: "Failed to trigger AI triage. Please try again.",
+                              variant: "destructive",
+                            });
+                          }
+                        }}
+                        disabled={triggeringTriage || aiTriageStatus.isRunning}
+                      >
+                        {triggeringTriage ? 'Triggering...' : 'Trigger Now'}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <div className="font-medium mb-1">Last Run</div>
+                      <div className="text-gray-600">
+                        {aiTriageStatus.lastRun?.completedAt 
+                          ? new Date(aiTriageStatus.lastRun.completedAt).toLocaleString()
+                          : 'Never run'
+                        }
+                      </div>
+                      <div className="text-gray-500">
+                        Processed {aiTriageStatus.lastRun?.itemsProcessed || 0} ideas
+                      </div>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <div className="font-medium mb-1">Next Run</div>
+                      <div className="text-gray-600">
+                        {aiTriageStatus.nextRun.scheduledAt 
+                          ? new Date(aiTriageStatus.nextRun.scheduledAt).toLocaleString()
+                          : 'Not scheduled'
+                        }
+                      </div>
+                      <div className="text-gray-500">
+                        {aiTriageStatus.nextRun.pendingItems} ideas pending
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -622,128 +1035,33 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
-        {/* Users & Roles Tab */}
-        <TabsContent value="users" className="space-y-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <div>
-                <CardTitle>User Management</CardTitle>
-                <CardDescription>Manage user accounts and role assignments</CardDescription>
-              </div>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Add User
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>User</TableHead>
-                    <TableHead>Department</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {users.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{user.name}</div>
-                          <div className="text-sm text-gray-500">{user.email}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>{user.department}</TableCell>
-                      <TableCell>
-                        <Badge variant={
-                          user.role === 'admin' ? 'default' :
-                          user.role === 'moderator' ? 'secondary' : 'outline'
-                        }>
-                          {user.role}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={user.active ? 'default' : 'secondary'}>
-                          {user.active ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button size="sm" variant="outline">
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button size="sm" variant="outline">
-                            <Shield className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Notifications Tab */}
-        <TabsContent value="notifications" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Email Notification Settings</CardTitle>
-              <CardDescription>Configure when and how notifications are sent</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                {notifications.map((notification) => (
-                  <div key={notification.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex-1">
-                      <h3 className="font-medium">{notification.name}</h3>
-                      <p className="text-sm text-gray-500">
-                        Frequency: {notification.frequency} • Recipients: {notification.recipients}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <Switch checked={notification.enabled} />
-                      <Button size="sm" variant="outline">
-                        <Settings2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Email Templates</CardTitle>
-              <CardDescription>Customize email notification templates</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2">
-                <Button variant="outline" className="h-20 flex flex-col">
-                  <Mail className="h-6 w-6 mb-2" />
-                  New Idea Template
-                </Button>
-                <Button variant="outline" className="h-20 flex flex-col">
-                  <Mail className="h-6 w-6 mb-2" />
-                  Status Update Template
-                </Button>
-                <Button variant="outline" className="h-20 flex flex-col">
-                  <Mail className="h-6 w-6 mb-2" />
-                  Weekly Summary Template
-                </Button>
-                <Button variant="outline" className="h-20 flex flex-col">
-                  <Mail className="h-6 w-6 mb-2" />
-                  Monthly Report Template
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
+
+      {/* Edit Routing Rule Dialog */}
+      <EditRoutingRuleDialog
+        rule={editingRule}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        onSubmit={handleEditRule}
+        loading={updatingRule}
+      />
+
+      <EditAIRuleDialog
+        rule={editingAIRule}
+        open={editAIRuleDialogOpen}
+        onOpenChange={setEditAIRuleDialogOpen}
+        onSubmit={handleEditAIRule}
+        loading={updatingAIRule}
+      />
+
+      <EditAITriageConfigDialog
+        rule={aiTriageStatus?.config || null}
+        open={editAITriageConfigDialogOpen}
+        onOpenChange={setEditAITriageConfigDialogOpen}
+        onSubmit={handleEditAITriageConfig}
+        loading={updatingConfig}
+      />
+      {/* Edit dialogs for AI Rules and AI Triage configuration */}
     </div>
   );
 }

@@ -1,0 +1,7 @@
+{
+  "name": "E2E AI Test User",
+  "description": "This is a TEST_E2E_TRIGGER message to verify that our AI rule correctly identifies this content and sends an email notification to the specified recipient. The message contains the trigger word that should activate our custom AI rule.",
+  "category": "Other",
+  "department": "Engineering",
+  "location": "Test Environment"
+}

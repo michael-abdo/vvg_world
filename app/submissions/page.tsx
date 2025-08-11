@@ -19,98 +19,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { ArrowUpDown, Filter, Lightbulb, Search, ThumbsUp, Clock, CheckCircle2 } from 'lucide-react';
+import { ArrowUpDown, Filter, Lightbulb, Search, ThumbsUp, Clock, CheckCircle2, Loader2 } from 'lucide-react';
 
-// API Types
-interface PainPoint {
-  id: number;
-  title: string;
-  description: string;
-  category: 'Safety' | 'Efficiency' | 'Cost Savings' | 'Quality' | 'Other';
-  submitted_by: string;
-  department?: string;
-  location?: string;
-  status: 'pending' | 'under_review' | 'in_progress' | 'completed' | 'rejected';
-  upvotes: number;
-  downvotes: number;
-  created_at: string;
-  updated_at: string;
-}
-
-// API fetch function
-const fetchPainPoints = async (): Promise<PainPoint[]> => {
-  try {
-    const response = await fetch('/api/pain-points');
-    if (!response.ok) {
-      throw new Error('Failed to fetch pain points');
-    }
-    const result = await response.json();
-    return result.data || [];
-  } catch (error) {
-    console.error('Error fetching pain points:', error);
-    return [];
-  }
-};
-
-// API voting function
-const voteOnPainPoint = async (id: number, voteType: 'up' | 'down'): Promise<PainPoint | null> => {
-  try {
-    const response = await fetch(`/api/pain-points/${id}/vote`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        vote_type: voteType,
-      }),
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to vote');
-    }
-    
-    const result = await response.json();
-    return result.data;
-  } catch (error) {
-    console.error('Error voting:', error);
-    throw error;
-  }
-};
-
-// Mock data removed - using real API data
 
 const statusConfig = {
-  'pending': { color: 'secondary', icon: Clock, label: 'Pending' },
-  'under_review': { color: 'secondary', icon: Clock, label: 'Under Review' },
-  'in_progress': { color: 'default', icon: ArrowUpDown, label: 'In Progress' },
-  'completed': { color: 'success', icon: CheckCircle2, label: 'Completed' },
-  'rejected': { color: 'destructive', icon: Clock, label: 'Rejected' },
+  'Under Review': { color: 'secondary', icon: Clock },
+  'In Progress': { color: 'default', icon: ArrowUpDown },
+  'Implemented': { color: 'success', icon: CheckCircle2 },
 };
-
-// Helper function to extract name from email
-const getNameFromEmail = (email: string): string => {
-  const name = email.split('@')[0];
-  return name.split('.').map(part => 
-    part.charAt(0).toUpperCase() + part.slice(1)
-  ).join(' ');
-};
-
-// Helper function to convert API data to display format
-const convertPainPointToSubmission = (painPoint: PainPoint) => ({
-  id: painPoint.id.toString(),
-  name: getNameFromEmail(painPoint.submitted_by),
-  department: painPoint.department || 'Unknown',
-  location: painPoint.location || 'Unknown',
-  category: painPoint.category,
-  description: painPoint.description,
-  status: statusConfig[painPoint.status]?.label || painPoint.status,
-  votes: painPoint.upvotes + painPoint.downvotes,
-  submittedAt: painPoint.created_at,
-});
 
 export default function SubmissionsPage() {
-  const [painPoints, setPainPoints] = useState<PainPoint[]>([]);
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [filteredSubmissions, setFilteredSubmissions] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -118,22 +36,49 @@ export default function SubmissionsPage() {
   const [sortBy, setSortBy] = useState('newest');
   const [votedIdeas, setVotedIdeas] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const [voting, setVoting] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
 
-  // Fetch pain points data on component mount
-  useEffect(() => {
-    const loadPainPoints = async () => {
-      console.log('Loading pain points...');
+  // Fetch submissions from API
+  const fetchSubmissions = async () => {
+    try {
       setLoading(true);
-      const data = await fetchPainPoints();
-      console.log('Fetched pain points:', data);
-      setPainPoints(data);
-      const converted = data.map(convertPainPointToSubmission);
-      console.log('Converted submissions:', converted);
-      setSubmissions(converted);
+      setError(null);
+      const userEmail = 'michael.abdo@vvg.com'; // Hardcoded for now, matches voting logic
+      const response = await fetch(`/api/submissions?userEmail=${encodeURIComponent(userEmail)}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        const submissions = data.submissions || [];
+        setSubmissions(submissions);
+        
+        // Initialize votedIdeas Set from userHasVoted fields in API response
+        const votedSubmissionIds = new Set<string>(
+          submissions
+            .filter((submission: any) => submission.userHasVoted)
+            .map((submission: any) => submission.id)
+        );
+        setVotedIdeas(votedSubmissionIds);
+        
+      } else {
+        throw new Error(data.error || 'Failed to fetch submissions');
+      }
+    } catch (err) {
+      console.error('Error fetching submissions:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load submissions');
+      // Fallback to empty array instead of mock data
+      setSubmissions([]);
+    } finally {
       setLoading(false);
-    };
-    loadPainPoints();
+    }
+  };
+
+  // Load submissions on component mount
+  useEffect(() => {
+    fetchSubmissions();
   }, []);
 
   // Filter and sort submissions
@@ -173,73 +118,101 @@ export default function SubmissionsPage() {
   }, [submissions, searchTerm, categoryFilter, sortBy]);
 
   const handleVote = async (id: string) => {
-    console.log('Vote clicked for id:', id);
-    
-    // Prevent multiple votes on same item
-    if (voting.has(id)) {
-      console.log('Already voting on id:', id);
-      return;
-    }
-    
-    // Check if already voted (toggle behavior)
-    const alreadyVoted = votedIdeas.has(id);
-    const voteType = alreadyVoted ? 'down' : 'up'; // If already voted, this is an "unvote" (down vote)
-    
-    // Set voting state
-    setVoting(prev => new Set(prev).add(id));
+    const isVoted = votedIdeas.has(id);
+    const action = isVoted ? 'remove' : 'add';
     
     try {
-      console.log(`${alreadyVoted ? 'Unvoting' : 'Voting'} for id: ${id} with type: ${voteType}`);
-      
-      // Try to vote via API
-      const updatedPainPoint = await voteOnPainPoint(parseInt(id), voteType);
-      
-      if (updatedPainPoint) {
-        console.log('Vote successful, updated pain point:', updatedPainPoint);
-        
-        // Update the pain points data with new vote counts
-        setPainPoints(prev => 
-          prev.map(p => p.id === updatedPainPoint.id ? updatedPainPoint : p)
-        );
-        
-        // Update submissions display data
-        setSubmissions(prev =>
-          prev.map(sub =>
-            sub.id === id 
-              ? { ...sub, votes: updatedPainPoint.upvotes + updatedPainPoint.downvotes }
-              : sub
-          )
-        );
-        
-        // Toggle voted state
-        setVotedIdeas(prev => {
+      // Optimistic UI update
+      if (isVoted) {
+        // Unvote
+        setVotedIdeas((prev) => {
           const newSet = new Set(prev);
-          if (alreadyVoted) {
-            newSet.delete(id);
-          } else {
-            newSet.add(id);
-          }
+          newSet.delete(id);
           return newSet;
         });
-        
-        console.log('Vote completed successfully');
-      }
-    } catch (error: any) {
-      console.error('Voting failed:', error);
-      
-      // Show user-friendly message
-      if (error.message.includes('Authentication required')) {
-        alert('Please sign in to vote on pain points. Voting requires authentication.');
+        setSubmissions((prev) =>
+          prev.map((sub) =>
+            sub.id === id ? { ...sub, votes: Math.max(sub.votes - 1, 0) } : sub
+          )
+        );
       } else {
-        alert('Failed to vote. Please try again.');
+        // Vote
+        setVotedIdeas((prev) => new Set(prev).add(id));
+        setSubmissions((prev) =>
+          prev.map((sub) =>
+            sub.id === id ? { ...sub, votes: sub.votes + 1 } : sub
+          )
+        );
       }
-    } finally {
-      // Clear voting state
-      setVoting(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(id);
-        return newSet;
+
+      // Call voting API endpoint
+      const response = await fetch('/api/submissions/vote', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          painPointId: id,
+          userEmail: 'michael.abdo@vvg.com',
+          voteType: 'up',
+          action: action
+        }),
       });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        // Revert optimistic update on failure
+        if (isVoted) {
+          setVotedIdeas((prev) => new Set(prev).add(id));
+          setSubmissions((prev) =>
+            prev.map((sub) =>
+              sub.id === id ? { ...sub, votes: sub.votes + 1 } : sub
+            )
+          );
+        } else {
+          setVotedIdeas((prev) => {
+            const newSet = new Set(prev);
+            newSet.delete(id);
+            return newSet;
+          });
+          setSubmissions((prev) =>
+            prev.map((sub) =>
+              sub.id === id ? { ...sub, votes: Math.max(sub.votes - 1, 0) } : sub
+            )
+          );
+        }
+      } else {
+        // Update with actual vote count from server
+        setSubmissions((prev) =>
+          prev.map((sub) =>
+            sub.id === id ? { ...sub, votes: result.votes || sub.votes } : sub
+          )
+        );
+      }
+      
+    } catch (error) {
+      console.error('Error processing vote:', error);
+      // Revert optimistic update on error
+      if (isVoted) {
+        setVotedIdeas((prev) => new Set(prev).add(id));
+        setSubmissions((prev) =>
+          prev.map((sub) =>
+            sub.id === id ? { ...sub, votes: sub.votes + 1 } : sub
+          )
+        );
+      } else {
+        setVotedIdeas((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(id);
+          return newSet;
+        });
+        setSubmissions((prev) =>
+          prev.map((sub) =>
+            sub.id === id ? { ...sub, votes: Math.max(sub.votes - 1, 0) } : sub
+          )
+        );
+      }
     }
   };
 
@@ -250,9 +223,36 @@ export default function SubmissionsPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">All Submissions</h1>
           <p className="text-gray-600">
-            Browse and vote on ideas from across VVG
+            Browse and vote on pain points from across VVG
           </p>
         </div>
+
+        {/* Loading State */}
+        {loading && (
+          <div className="flex justify-center items-center py-12">
+            <div className="text-center">
+              <Loader2 className="h-8 w-8 animate-spin text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-600">Loading submissions...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Error State */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-red-900 mb-2">Error Loading Submissions</h3>
+              <p className="text-red-700 mb-4">{error}</p>
+              <Button onClick={fetchSubmissions} variant="outline">
+                Try Again
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Content - only show when not loading */}
+        {!loading && (
+          <>
 
         {/* Filters and Search */}
         <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
@@ -302,23 +302,10 @@ export default function SubmissionsPage() {
           Showing {filteredSubmissions.length} of {submissions.length} submissions
         </p>
 
-        {/* Loading State */}
-        {loading && (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading pain points...</p>
-          </div>
-        )}
-
         {/* Submissions Grid */}
-        {!loading && (
-          <div className="grid gap-4">
-            {filteredSubmissions.map((submission) => {
-              // Find the matching pain point to get real status
-              const painPoint = painPoints.find(p => p.id.toString() === submission.id);
-              const statusKey = painPoint?.status || 'pending';
-              const statusInfo = statusConfig[statusKey];
-              const StatusIcon = statusInfo?.icon || Clock;
+        <div className="grid gap-4">
+          {filteredSubmissions.map((submission) => {
+            const StatusIcon = statusConfig[submission.status as keyof typeof statusConfig].icon;
             return (
               <Card key={submission.id} className="hover:shadow-lg transition-shadow">
                 <CardHeader>
@@ -330,11 +317,11 @@ export default function SubmissionsPage() {
                       </CardDescription>
                     </div>
                     <Badge 
-                      variant={statusInfo?.color as any}
+                      variant={statusConfig[submission.status as keyof typeof statusConfig].color as any}
                       className="flex items-center gap-1"
                     >
                       <StatusIcon className="h-3 w-3" />
-                      {statusInfo?.label || statusKey}
+                      {submission.status}
                     </Badge>
                   </div>
                 </CardHeader>
@@ -349,20 +336,15 @@ export default function SubmissionsPage() {
                     </div>
                     <button
                       onClick={() => handleVote(submission.id)}
-                      disabled={voting.has(submission.id)}
                       className={`inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-9 rounded-md px-3 ${
                         votedIdeas.has(submission.id) 
                           ? "bg-green-600 hover:bg-green-700 text-white border border-green-600" 
                           : "border border-input bg-background hover:bg-accent hover:text-accent-foreground"
                       }`}
                     >
-                      {voting.has(submission.id) ? (
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                      ) : (
-                        <ThumbsUp className={`h-4 w-4 ${
-                          votedIdeas.has(submission.id) ? "fill-white" : ""
-                        }`} />
-                      )}
+                      <ThumbsUp className={`h-4 w-4 ${
+                        votedIdeas.has(submission.id) ? "fill-white" : ""
+                      }`} />
                       {submission.votes}
                     </button>
                   </div>
@@ -371,10 +353,9 @@ export default function SubmissionsPage() {
             );
           })}
         </div>
-        )}
 
         {/* Empty State */}
-        {!loading && filteredSubmissions.length === 0 && (
+        {filteredSubmissions.length === 0 && (
           <div className="text-center py-12">
             <Lightbulb className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">No submissions found</h3>
@@ -386,7 +367,7 @@ export default function SubmissionsPage() {
         )}
 
         {/* Submit Idea CTA */}
-        {!loading && filteredSubmissions.length > 0 && (
+        {filteredSubmissions.length > 0 && (
           <div className="mt-8 text-center">
             <Link href="/ideas">
               <Button size="lg" className="gap-2">
@@ -395,6 +376,8 @@ export default function SubmissionsPage() {
               </Button>
             </Link>
           </div>
+        )}
+        </>
         )}
       </div>
     </div>

@@ -3,6 +3,9 @@ import { twMerge } from "tailwind-merge"
 import { NextResponse } from "next/server"
 import { APP_CONSTANTS, EnvironmentHelpers } from './config'
 
+// Export StatusManager from status-manager utility
+export { StatusManager, StatusUtils } from './utils/status-manager';
+
 // Export InputValidator from input-validator utility
 export { InputValidator, Validators } from './utils/input-validator';
 
@@ -561,6 +564,15 @@ export function getFilenameFromPath(fullPath: string): string {
  */
 // parseDocumentId moved to RequestParser.parseDocumentId to eliminate duplication
 
+/**
+ * Checks if a user owns a document
+ * @param document - The document to check
+ * @param userEmail - The user's email
+ * @returns Boolean indicating ownership
+ */
+export function isDocumentOwner(document: { user_id: string }, userEmail: string): boolean {
+  return document.user_id === userEmail;
+}
 
 /**
  * Centralized file validation utilities for consistent file upload handling

@@ -1,0 +1,1106 @@
+{
+  "info": {
+    "name": "VVG World API Collection",
+    "description": "Complete API collection for VVG World Pain Points Platform\n\n**Base URL**: {{base_url}} (set to http://localhost:3001 for local dev)\n\n**Features**:\n- Pain point submissions and voting system\n- Health checks for application, database, and storage\n- Authentication via Azure AD (NextAuth)\n- URL validation utilities\n- Error handling examples\n\n**Authentication**: Most endpoints are currently open, except document management which returns 401.\n\n**Environment Variables**:\n- `base_url`: Your server URL (e.g., http://localhost:3001)\n- `user_email`: Test user email (default: michael.abdo@vvg.com)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "vvg-world"
+  },
+  "item": [
+    {
+      "name": "🏠 Core Pain Points",
+      "description": "Main APIs for the pain points platform - submissions, voting, and idea submission",
+      "item": [
+        {
+          "name": "GET Submissions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has success field', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('success');",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('Response has submissions array', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('submissions');",
+                  "    pm.expect(jsonData.submissions).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "description": "Optional header"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/submissions?userEmail={{user_email}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "submissions"
+              ],
+              "query": [
+                {
+                  "key": "userEmail",
+                  "value": "{{user_email}}",
+                  "description": "User email to check voting status (optional)"
+                }
+              ]
+            },
+            "description": "Retrieve all pain point submissions with vote counts and user-specific voting status.\n\n**Query Parameters**:\n- `userEmail` (optional): User email to check if they've voted\n\n**Response**: Returns submissions array with vote counts and `userHasVoted` boolean for each submission."
+          },
+          "response": [
+            {
+              "name": "Success Response",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/submissions?userEmail=michael.abdo@vvg.com",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "submissions"
+                  ],
+                  "query": [
+                    {
+                      "key": "userEmail",
+                      "value": "michael.abdo@vvg.com"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"submissions\": [\n    {\n      \"id\": \"1\",\n      \"name\": \"Michael Abdo\",\n      \"department\": \"Engineering\",\n      \"location\": \"Fontana\",\n      \"category\": \"Process\",\n      \"description\": \"Current inventory system lacks real-time updates causing delays.\",\n      \"status\": \"Under Review\",\n      \"votes\": 5,\n      \"submittedAt\": \"2024-01-01T10:00:00.000Z\",\n      \"userHasVoted\": true\n    },\n    {\n      \"id\": \"2\",\n      \"name\": \"John Smith\",\n      \"department\": \"Operations\",\n      \"location\": \"Phoenix\",\n      \"category\": \"Safety\",\n      \"description\": \"Safety equipment storage is disorganized and hard to locate.\",\n      \"status\": \"Open\",\n      \"votes\": 2,\n      \"submittedAt\": \"2024-01-02T14:30:00.000Z\",\n      \"userHasVoted\": false\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "POST Vote on Submission",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response indicates success', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('Response has vote counts', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('votes');",
+                  "    pm.expect(jsonData).to.have.property('upvotes');",
+                  "    pm.expect(jsonData).to.have.property('downvotes');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"painPointId\": \"1\",\n  \"userEmail\": \"{{user_email}}\",\n  \"voteType\": \"up\",\n  \"action\": \"add\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/submissions/vote",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "submissions",
+                "vote"
+              ]
+            },
+            "description": "Add or remove votes for pain point submissions.\n\n**Required Fields**:\n- `painPointId`: ID of the pain point to vote on\n\n**Optional Fields**:\n- `userEmail`: Voter's email (default: michael.abdo@vvg.com)\n- `voteType`: 'up' or 'down' (default: 'up')\n- `action`: 'add' or 'remove' (default: 'add')\n\n**Response**: Returns updated vote counts and success message."
+          },
+          "response": [
+            {
+              "name": "Vote Added Successfully",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"painPointId\": \"1\",\n  \"userEmail\": \"michael.abdo@vvg.com\",\n  \"voteType\": \"up\",\n  \"action\": \"add\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/submissions/vote",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "submissions",
+                    "vote"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Vote added successfully\",\n  \"votes\": 6,\n  \"upvotes\": 6,\n  \"downvotes\": 1\n}"
+            },
+            {
+              "name": "Validation Error",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"userEmail\": \"invalid-email\",\n  \"voteType\": \"up\",\n  \"action\": \"add\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/submissions/vote",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "submissions",
+                    "vote"
+                  ]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": false,\n  \"error\": \"Validation failed\",\n  \"details\": [\n    {\n      \"code\": \"invalid_type\",\n      \"expected\": \"string\",\n      \"received\": \"undefined\",\n      \"path\": [\"painPointId\"],\n      \"message\": \"Required\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "POST Submit New Idea",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response indicates success', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('Response has ID and message', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"department\": \"Engineering\",\n  \"location\": \"San Francisco\",\n  \"category\": \"Process Improvement\",\n  \"description\": \"This is a detailed description of the pain point that needs to be addressed. The current process is inefficient and causes delays.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/ideas/submit",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "ideas",
+                "submit"
+              ]
+            },
+            "description": "Submit a new pain point idea to the platform.\n\n**Required Fields**:\n- `name`: Submitter's name (min 2 chars)\n- `department`: Department name (min 1 char)\n- `location`: Location (min 1 char)\n- `category`: Pain point category (min 1 char)\n- `description`: Detailed description (min 10 chars)\n\n**Optional Fields**:\n- `attachment`: File attachment (any type)\n\n**Response**: Returns success status, new ID, and confirmation message."
+          },
+          "response": [
+            {
+              "name": "Idea Submitted Successfully",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"John Doe\",\n  \"department\": \"Engineering\",\n  \"location\": \"San Francisco\",\n  \"category\": \"Process Improvement\",\n  \"description\": \"This is a detailed description of the pain point that needs to be addressed. The current process is inefficient and causes delays.\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/ideas/submit",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "ideas",
+                    "submit"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"id\": 456,\n  \"message\": \"Pain point submitted successfully\"\n}"
+            },
+            {
+              "name": "Validation Error - Short Description",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"John Doe\",\n  \"department\": \"Engineering\",\n  \"location\": \"San Francisco\",\n  \"category\": \"Process\",\n  \"description\": \"Too short\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/ideas/submit",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "ideas",
+                    "submit"
+                  ]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": false,\n  \"error\": \"Validation failed\",\n  \"details\": [\n    {\n      \"code\": \"too_small\",\n      \"minimum\": 10,\n      \"type\": \"string\",\n      \"path\": [\"description\"],\n      \"message\": \"String must contain at least 10 character(s)\"\n    }\n  ]\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "🔐 Authentication",
+      "description": "Authentication endpoints using NextAuth with Azure AD",
+      "item": [
+        {
+          "name": "NextAuth Endpoints",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/auth/signin",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "signin"
+              ]
+            },
+            "description": "NextAuth authentication endpoints for Azure AD OAuth.\n\n**Available Endpoints**:\n- `/api/auth/signin` - Sign in page\n- `/api/auth/signout` - Sign out\n- `/api/auth/callback/azure-ad` - OAuth callback\n- `/api/auth/session` - Get current session\n\n**Configuration Required**:\n- AZURE_AD_CLIENT_ID\n- AZURE_AD_CLIENT_SECRET\n- AZURE_AD_TENANT_ID\n- NEXTAUTH_SECRET\n\n**OAuth Scopes**: `openid profile email`"
+          },
+          "response": [
+            {
+              "name": "Sign In Page",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/auth/signin",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "auth",
+                    "signin"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "html",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/html"
+                }
+              ],
+              "cookie": [],
+              "body": "<!-- NextAuth Sign In Page HTML -->"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "🏥 Health Checks",
+      "description": "Health check endpoints for monitoring application, database, and storage status",
+      "item": [
+        {
+          "name": "GET App Health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has ok field', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.ok).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('Response has service name', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.service).to.equal('vvg-world');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "health"
+              ]
+            },
+            "description": "Basic application health check endpoint.\n\n**Purpose**: Verify that the application is running and responsive.\n\n**Response**: Returns basic service information and timestamp."
+          },
+          "response": [
+            {
+              "name": "Healthy Response",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/health",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "health"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"ok\": true,\n  \"service\": \"vvg-world\",\n  \"timestamp\": \"2024-01-01T10:00:00.000Z\",\n  \"environment\": \"development\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET Database Health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 or 503', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 503]);",
+                  "});",
+                  "",
+                  "pm.test('Response has status field', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData.status).to.be.oneOf(['healthy', 'degraded']);",
+                  "});",
+                  "",
+                  "pm.test('Response has service field', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.service).to.equal('db');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/db-health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "db-health"
+              ]
+            },
+            "description": "Database configuration health check.\n\n**Purpose**: Verify database connectivity and configuration.\n\n**Responses**:\n- **200**: Database is configured and ready\n- **503**: Database not configured, using in-memory storage\n\n**Environment Variables Checked**:\n- DB_HOST, DB_USER, DB_PASSWORD, DB_NAME"
+          },
+          "response": [
+            {
+              "name": "Database Healthy",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/db-health",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "db-health"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"status\": \"healthy\",\n  \"service\": \"db\",\n  \"message\": \"Database configured and ready\",\n  \"timestamp\": \"2024-01-01T10:00:00.000Z\"\n}"
+            },
+            {
+              "name": "Database Degraded",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/db-health",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "db-health"
+                  ]
+                }
+              },
+              "status": "Service Unavailable",
+              "code": 503,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"status\": \"degraded\",\n  \"service\": \"db\",\n  \"message\": \"Database not configured - using in-memory storage\",\n  \"details\": {\n    \"hasDbAccess\": false,\n    \"mode\": \"in-memory\",\n    \"recommendation\": \"Configure DB_HOST, DB_USER, DB_PASSWORD, and DB_NAME for production\"\n  },\n  \"timestamp\": \"2024-01-01T10:00:00.000Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET Storage Health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 or 503', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 503]);",
+                  "});",
+                  "",
+                  "pm.test('Response has status field', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData.status).to.be.oneOf(['healthy', 'degraded']);",
+                  "});",
+                  "",
+                  "pm.test('Response has provider field', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.provider).to.be.oneOf(['s3', 'local']);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/storage-health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "storage-health"
+              ]
+            },
+            "description": "Storage (S3) configuration health check.\n\n**Purpose**: Verify S3 storage connectivity and configuration.\n\n**Responses**:\n- **200**: S3 is configured and ready\n- **503**: S3 not configured, using local storage\n\n**Environment Variables Checked**:\n- AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, S3_BUCKET_NAME"
+          },
+          "response": [
+            {
+              "name": "Storage Healthy (S3)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/storage-health",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "storage-health"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"status\": \"healthy\",\n  \"service\": \"storage\",\n  \"message\": \"S3 storage configured and ready\",\n  \"provider\": \"s3\",\n  \"timestamp\": \"2024-01-01T10:00:00.000Z\"\n}"
+            },
+            {
+              "name": "Storage Degraded (Local)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/storage-health",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "storage-health"
+                  ]
+                }
+              },
+              "status": "Service Unavailable",
+              "code": 503,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"status\": \"degraded\",\n  \"service\": \"storage\",\n  \"message\": \"Using local storage - S3 not configured\",\n  \"provider\": \"local\",\n  \"timestamp\": \"2024-01-01T10:00:00.000Z\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "🔧 Utilities",
+      "description": "Utility endpoints for URL validation and protected route examples",
+      "item": [
+        {
+          "name": "POST Validate URL",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 or 400', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 400]);",
+                  "});",
+                  "",
+                  "pm.test('Response has success field', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('success');",
+                  "});",
+                  "",
+                  "pm.test('Response has operation field', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.operation).to.equal('url.validate');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/validate-url",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "validate-url"
+              ]
+            },
+            "description": "Validate URL format utility endpoint.\n\n**Required Fields**:\n- `url`: URL string to validate\n\n**Response**: Returns validation result with success status and URL validity."
+          },
+          "response": [
+            {
+              "name": "Valid URL",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"url\": \"https://example.com\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/validate-url",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "validate-url"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"operation\": \"url.validate\",\n  \"message\": \"URL is valid\",\n  \"data\": {\n    \"url\": \"https://example.com\",\n    \"valid\": true\n  },\n  \"timestamp\": \"2024-01-01T10:00:00.000Z\"\n}"
+            },
+            {
+              "name": "Invalid URL",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"url\": \"invalid-url\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/validate-url",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "validate-url"
+                  ]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": false,\n  \"operation\": \"url.validate\",\n  \"message\": \"Invalid URL format\",\n  \"data\": {\n    \"url\": \"invalid-url\",\n    \"valid\": false\n  },\n  \"timestamp\": \"2024-01-01T10:00:00.000Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET Protected Example",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/protected-example",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "protected-example"
+              ]
+            },
+            "description": "Example protected endpoint (currently not enforcing authentication).\n\n**Purpose**: Demonstrates protected route structure.\n\n**Note**: Authentication is not currently enforced on this endpoint."
+          },
+          "response": [
+            {
+              "name": "Success Response",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/protected-example",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "protected-example"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"operation\": \"protected.get\",\n  \"message\": \"Protected example endpoint\",\n  \"timestamp\": \"2024-01-01T10:00:00.000Z\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "🚫 Disabled Routes (401)",
+      "description": "Routes that are currently disabled and return 401 authentication errors",
+      "item": [
+        {
+          "name": "GET Dashboard Stats (Disabled)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/dashboard/stats",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "dashboard",
+                "stats"
+              ]
+            },
+            "description": "**Status**: Disabled - Returns 401\n\n**Purpose**: Would provide dashboard statistics data.\n\n**Current Response**: Authentication required error."
+          },
+          "response": [
+            {
+              "name": "Authentication Required",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/dashboard/stats",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "dashboard",
+                    "stats"
+                  ]
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": false,\n  \"error\": \"Authentication required\",\n  \"message\": \"Dashboard stats requires authentication\",\n  \"timestamp\": \"2024-01-01T10:00:00.000Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET Documents (Disabled)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/documents",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "documents"
+              ]
+            },
+            "description": "**Status**: Disabled - Returns 401\n\n**Purpose**: Would list document management entries.\n\n**Current Response**: Authentication required error."
+          },
+          "response": [
+            {
+              "name": "Authentication Required",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/documents",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "documents"
+                  ]
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": false,\n  \"error\": \"Authentication required\",\n  \"message\": \"Document listing requires authentication\",\n  \"timestamp\": \"2024-01-01T10:00:00.000Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "POST Upload (Disabled)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "multipart/form-data"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/upload",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "upload"
+              ]
+            },
+            "description": "**Status**: Disabled - Returns 401\n\n**Purpose**: Would handle file uploads.\n\n**Current Response**: Authentication required error."
+          },
+          "response": [
+            {
+              "name": "Authentication Required",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/upload",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "upload"
+                  ]
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": false,\n  \"error\": \"Authentication required\",\n  \"message\": \"File upload requires authentication\",\n  \"timestamp\": \"2024-01-01T10:00:00.000Z\"\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3001",
+      "description": "Base URL for the VVG World API (change for different environments)"
+    },
+    {
+      "key": "user_email",
+      "value": "michael.abdo@vvg.com",
+      "description": "Test user email for API requests"
+    }
+  ]
+}

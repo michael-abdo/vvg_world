@@ -1,26 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withAuth } from '@/lib/auth-utils';
 import { painPointsDb } from '@/lib/pain-points-db';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth-options';
 
-export async function GET(request: NextRequest) {
+async function getReportsHandler(request: NextRequest, userEmail: string) {
   try {
-    // Check for dev bypass
-    if (process.env.NODE_ENV === 'development' && process.env.DISABLE_AUTH === 'true') {
-      console.log('Using development authentication bypass');
-      const userEmail = process.env.TEST_USER_EMAIL || 'test@example.com';
-      console.log('Fetching reports data for user:', userEmail);
-    } else {
-      // Normal authentication flow
-      const session = await getServerSession(authOptions);
-      if (!session?.user?.email) {
-        return NextResponse.json(
-          { success: false, error: 'Authentication required' },
-          { status: 401 }
-        );
-      }
-      console.log('Fetching reports data for user:', session.user.email);
-    }
+    console.log('Fetching reports data for user:', userEmail);
     
     // Fetch all analytics data in parallel for better performance
     const [submissionTrends, departmentData, successRateData, keyMetrics] = await Promise.all([
@@ -58,3 +42,5 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+export const GET = withAuth(getReportsHandler, { allowDevBypass: true });

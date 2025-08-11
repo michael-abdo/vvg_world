@@ -56,6 +56,23 @@ export const config = {
   database: {
     url: process.env.DATABASE_URL || '',
   },
+
+  // Email configuration (AWS SES SMTP)
+  email: {
+    smtp: {
+      host: process.env.AWS_SES_SMTP_HOST || `email-smtp.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com`,
+      port: parseInt(process.env.AWS_SES_SMTP_PORT || '587', 10),
+      secure: false, // Uses STARTTLS on port 587
+      auth: {
+        user: process.env.AWS_SES_SMTP_USERNAME,
+        pass: process.env.AWS_SES_SMTP_PASSWORD
+      }
+    },
+    from: process.env.SES_FROM_EMAIL || 'noreply@vvgtruck.com',
+    admin: process.env.ADMIN_EMAIL || 'admin@vvgtruck.com',
+    testRecipient: process.env.SES_TEST_RECIPIENT || 'test@example.com',
+    enableInDev: process.env.ENABLE_EMAIL_IN_DEV === 'true'
+  },
   
   // Database configuration
   MYSQL_HOST: process.env.MYSQL_HOST || 'localhost',

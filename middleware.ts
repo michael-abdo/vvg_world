@@ -1,17 +1,53 @@
+import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import { config as appConfig, EnvironmentHelpers } from "@/lib/config";
 
-// Simplified middleware - no authentication logic per 2025 industry standards
-// Authentication is now handled in the Data Access Layer (lib/dal.ts)
-// to avoid CVE-2025-29927 middleware vulnerabilities
-export default function middleware(request: NextRequest) {
-  // Basic middleware for request processing only
-  return NextResponse.next();
-}
+export default withAuth(
+  function middleware(req) {
+    // Check for dev bypass header in development
+    if (EnvironmentHelpers.isDevelopment() &&
+        req.headers.get("X-Dev-Bypass") === "true") {
+      return NextResponse.next();
+    }
 
-// Remove middleware matcher - authentication is now handled in DAL
-// This prevents the CVE-2025-29927 vulnerability where middleware
-// can be bypassed with x-middleware-subrequest header
+    // Additional custom middleware logic could be added here if needed
+    return NextResponse.next();
+  },
+  {
+    callbacks: {
+      authorized: ({ token, req }) => {
+        // Allow dev bypass in development
+        if (EnvironmentHelpers.isDevelopment() &&
+            req.headers.get("X-Dev-Bypass") === "true") {
+          return true;
+        }
+        return !!token;
+      },
+    },
+    pages: {
+      signIn: "/sign-in",
+    },
+  }
+);
+
+// Protect routes - Next.js basePath automatically handles path prefixing
 export const config = {
-  matcher: []
+  matcher: [
+    // Protect dashboard routes
+    "/dashboard/:path*",
+    // Protect specific pages
+    "/upload",
+    "/documents", 
+    "/compare",
+    // Protect API routes except public ones
+    "/api/upload",
+    "/api/documents/:path*",
+    "/api/compare/:path*",
+    "/api/dashboard/:path*",
+    "/api/migrate-db",
+    "/api/protected-example",
+    "/api/storage-health",
+    "/api/db-health",
+    "/api/validate-url"
+  ],
 };
