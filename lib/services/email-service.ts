@@ -4,9 +4,9 @@
 import { config } from '@/lib/config';
 import { RoutingAction, EmailNotificationData, PriorityLevel } from '@/lib/types/data-pipeline';
 
-// Nodemailer imports (need to install: npm install nodemailer @types/nodemailer)
-// import * as nodemailer from 'nodemailer';
-// import { Transporter, SendMailOptions } from 'nodemailer';
+// Nodemailer imports
+import * as nodemailer from 'nodemailer';
+import { Transporter, SendMailOptions } from 'nodemailer';
 
 // Interface for pain point data used in emails
 interface PainPointEmailData {
@@ -38,7 +38,7 @@ interface EmailMessage {
 // Email service class with SMTP implementation
 export class EmailService {
   private readonly baseUrl: string;
-  // private transporter: Transporter | null = null;
+  private transporter: Transporter | null = null;
 
   constructor() {
     this.baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001';
@@ -54,19 +54,19 @@ export class EmailService {
       }
 
       // Nodemailer SMTP configuration
-      // this.transporter = nodemailer.createTransporter({
-      //   host: config.email.smtp.host,
-      //   port: config.email.smtp.port,
-      //   secure: config.email.smtp.secure,
-      //   auth: {
-      //     user: config.email.smtp.auth.user,
-      //     pass: config.email.smtp.auth.pass,
-      //   },
-      //   // Additional options for AWS SES
-      //   connectionTimeout: 60000,
-      //   greetingTimeout: 30000,
-      //   socketTimeout: 60000,
-      // });
+      this.transporter = nodemailer.createTransport({
+        host: config.email.smtp.host,
+        port: config.email.smtp.port,
+        secure: config.email.smtp.secure,
+        auth: {
+          user: config.email.smtp.auth.user,
+          pass: config.email.smtp.auth.pass,
+        },
+        // Additional options for AWS SES
+        connectionTimeout: 60000,
+        greetingTimeout: 30000,
+        socketTimeout: 60000,
+      });
 
       console.log('📧 Email service initialized with SMTP configuration');
     } catch (error) {
@@ -82,11 +82,11 @@ export class EmailService {
         return true;
       }
 
-      // if (!this.transporter) {
-      //   throw new Error('Email transporter not initialized');
-      // }
+      if (!this.transporter) {
+        throw new Error('Email transporter not initialized');
+      }
 
-      // await this.transporter.verify();
+      await this.transporter.verify();
       console.log('✅ SMTP connection verified successfully');
       return true;
     } catch (error) {
@@ -118,26 +118,22 @@ export class EmailService {
       }
 
       // Production email sending
-      // if (!this.transporter) {
-      //   throw new Error('Email transporter not initialized');
-      // }
+      if (!this.transporter) {
+        throw new Error('Email transporter not initialized');
+      }
 
-      // const mailOptions: SendMailOptions = {
-      //   from: message.from || config.email.from,
-      //   to: recipients,
-      //   subject: message.subject,
-      //   text: message.text,
-      //   html: message.html,
-      // };
+      const mailOptions: SendMailOptions = {
+        from: message.from || config.email.from,
+        to: recipients,
+        subject: message.subject,
+        text: message.text,
+        html: message.html,
+      };
 
-      // const result = await this.transporter.sendMail(mailOptions);
-      // console.log('✅ Email sent successfully:', result.messageId);
+      const result = await this.transporter.sendMail(mailOptions);
+      console.log('✅ Email sent successfully:', result.messageId);
       
-      // return { success: true, messageId: result.messageId };
-      
-      // Placeholder return for now
-      console.log('📧 [PLACEHOLDER] Email would be sent via SMTP');
-      return { success: true, messageId: 'placeholder-' + Date.now() };
+      return { success: true, messageId: result.messageId };
 
     } catch (error) {
       console.error('❌ Error sending email:', error);
