@@ -219,6 +219,39 @@ check_security_groups() {
     info "Please ensure these ports are open in AWS Security Groups"
 }
 
+# Setup AI triage cron job
+setup_cron_job() {
+    log "Setting up AI triage cron job..."
+    
+    # Check if cron script exists
+    if [ ! -f "$APP_DIR/scripts/ai-triage-cron.sh" ]; then
+        warn "AI triage cron script not found at $APP_DIR/scripts/ai-triage-cron.sh"
+        warn "Skipping cron setup"
+        return
+    fi
+    
+    # Make script executable
+    chmod +x "$APP_DIR/scripts/ai-triage-cron.sh"
+    
+    # Define cron entry
+    CRON_ENTRY="0 9 * * 1 $APP_DIR/scripts/ai-triage-cron.sh"
+    
+    # Check if cron entry already exists
+    if crontab -l 2>/dev/null | grep -q "ai-triage-cron.sh"; then
+        log "AI triage cron job already exists, updating..."
+        # Remove old entry
+        crontab -l 2>/dev/null | grep -v "ai-triage-cron.sh" | crontab -
+    fi
+    
+    # Add new cron entry
+    (crontab -l 2>/dev/null; echo "$CRON_ENTRY") | crontab -
+    
+    log "AI triage cron job configured to run every Monday at 9:00 AM ✓"
+    info "Cron job: $CRON_ENTRY"
+    info "View crontab: crontab -l"
+    info "Logs will be at: /home/ubuntu/logs/vvg-app/ai-triage-cron.log"
+}
+
 # Test application
 test_application() {
     log "Testing application..."
@@ -274,6 +307,7 @@ main() {
     build_application
     configure_nginx
     start_application
+    setup_cron_job
     check_security_groups
     test_application
     
@@ -286,6 +320,8 @@ main() {
     info "3. Test Azure AD authentication"
     info "4. Monitor logs: pm2 logs ${PROJECT_NAME:-vvg-app}"
     info "5. Check status: pm2 status"
+    info "6. Check AI triage cron: crontab -l"
+    info "7. Test AI triage: $APP_DIR/scripts/test-ai-triage.sh"
 }
 
 # SSL installation function

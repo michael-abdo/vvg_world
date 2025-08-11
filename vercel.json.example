@@ -1,0 +1,10 @@
+{
+  "_comment": "Vercel cron configuration - Example only",
+  "_note": "This project now deploys to EC2 with Linux cron jobs. This file is kept as reference for potential Vercel deployments.",
+  "crons": [
+    {
+      "path": "/api/cron/ai-triage",
+      "schedule": "0 9 * * 1"
+    }
+  ]
+}

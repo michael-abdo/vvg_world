@@ -3,11 +3,31 @@ import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/db';
 import { APIResponse } from '@/lib/types/data-pipeline';
 import { z } from 'zod';
+import { OpenAIService, DocumentAnalysisResult } from '@/lib/services/openai-service';
+import { EmailService } from '@/lib/services/email-service';
+
 // Generate a simple unique ID using timestamp and random number
 function generateRunId(): string {
   const timestamp = Date.now().toString(36);
   const random = Math.random().toString(36).substring(2, 8);
   return `triage_${timestamp}_${random}`;
+}
+
+// Initialize services
+const openAIService = new OpenAIService();
+const emailService = new EmailService();
+
+// Helper function to map sentiment to priority
+function sentimentToPriority(sentiment: 'positive' | 'neutral' | 'negative', confidence: number): string {
+  if (sentiment === 'negative' && confidence > 0.8) {
+    return 'critical';
+  } else if (sentiment === 'negative') {
+    return 'high';
+  } else if (sentiment === 'neutral') {
+    return 'medium';
+  } else {
+    return 'low';
+  }
 }
 
 // Validation schema
@@ -145,49 +165,123 @@ export async function POST(request: NextRequest) {
     let routedItems = 0;
     let flaggedItems = 0;
 
-    // Simulate processing each item
+    // Process each item with AI analysis
     for (const item of pendingItems) {
+      const itemStartTime = Date.now();
       try {
-        // Simulate AI analysis and routing rule matching
-        // In a real implementation, this would:
         // 1. Analyze the pain point content with AI
-        // 2. Match against routing rules
-        // 3. Send notifications to stakeholders
-        // 4. Log the routing action
+        const content = `Title: ${item.title}\nDescription: ${item.description}\nCategory: ${item.category || 'Uncategorized'}\nDepartment: ${item.department || 'Unknown'}\nLocation: ${item.location || 'Not specified'}`;
+        
+        let aiAnalysis: DocumentAnalysisResult;
+        try {
+          aiAnalysis = await openAIService.analyzeDocument(content, `pain_point_${item.id}`);
+        } catch (aiError) {
+          console.error(`AI analysis failed for item ${item.id}:`, aiError);
+          // Fall back to basic processing if AI fails
+          aiAnalysis = {
+            summary: item.description.substring(0, 200),
+            keyPoints: [],
+            categories: [item.category || 'Other'],
+            sentiment: 'neutral',
+            confidence: 0.5
+          };
+        }
 
-        // For simulation, let's match some basic rules
-        const category = item.category || 'Other';
+        // 2. Extract AI-suggested categories and priority
+        const aiCategories = aiAnalysis.categories || [item.category || 'Other'];
+        const aiPriority = sentimentToPriority(aiAnalysis.sentiment, aiAnalysis.confidence);
+
+        // 3. Match against routing rules using AI-suggested categories
+        // Convert single category to array format for new JSON columns
+        const categoryConditions = aiCategories.map(() => 'JSON_CONTAINS(category, ?)').join(' OR ');
+        const categoryValues = aiCategories.map(cat => JSON.stringify([cat]));
+        
+        const routingRulesQuery = `
+          SELECT * FROM routing_rules 
+          WHERE active = true 
+          AND (${categoryConditions} OR JSON_CONTAINS(category, '["All"]'))
+          ORDER BY priority DESC
+          LIMIT 1
+        `;
+
         const routingRules = await executeQuery<any[]>({
-          query: 'SELECT * FROM routing_rules WHERE active = true AND (category = ? OR category = "All")',
-          values: [category]
+          query: routingRulesQuery,
+          values: categoryValues
         });
 
         if (routingRules.length > 0) {
-          // Simulate sending notifications and logging
+          // 4. Send notifications to stakeholders
           const rule = routingRules[0];
           const stakeholders = typeof rule.stakeholders === 'string' 
             ? JSON.parse(rule.stakeholders) 
             : rule.stakeholders;
 
+          // Send email notifications with AI analysis
+          try {
+            await emailService.sendRoutingNotification({
+              painPoint: item,
+              rule: rule,
+              stakeholders: stakeholders,
+              priority: aiPriority,
+              aiAnalysis: {
+                summary: aiAnalysis.summary,
+                sentiment: aiAnalysis.sentiment,
+                confidence: aiAnalysis.confidence,
+                suggestedCategories: aiAnalysis.categories
+              }
+            });
+          } catch (emailError) {
+            console.error(`Failed to send email for item ${item.id}:`, emailError);
+          }
+
+          // 5. Log the routing action with AI metadata
+          const processingTime = Date.now() - itemStartTime;
           await executeQuery({
             query: `INSERT INTO routing_rule_logs (
               rule_id, pain_point_id, action_taken, stakeholders_notified, 
-              priority_assigned, success, processing_time_ms
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+              priority_assigned, success, processing_time_ms, metadata
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             values: [
               rule.id,
               item.id,
-              'email_notification',
+              'ai_triage_email',
               JSON.stringify(stakeholders),
-              rule.priority,
+              aiPriority,
               true,
-              Math.floor(Math.random() * 500) + 100 // Simulate processing time
+              processingTime,
+              JSON.stringify({
+                aiSummary: aiAnalysis.summary,
+                aiCategories: aiAnalysis.categories,
+                aiSentiment: aiAnalysis.sentiment,
+                aiConfidence: aiAnalysis.confidence
+              })
             ]
           });
 
           routedItems++;
         } else {
-          // No matching rule, flag for manual review
+          // No matching rule, flag for manual review with AI insights
+          const processingTime = Date.now() - itemStartTime;
+          await executeQuery({
+            query: `INSERT INTO routing_rule_logs (
+              rule_id, pain_point_id, action_taken, stakeholders_notified, 
+              priority_assigned, success, processing_time_ms, metadata
+            ) VALUES (NULL, ?, ?, NULL, ?, ?, ?, ?)`,
+            values: [
+              item.id,
+              'flagged_for_review',
+              aiPriority,
+              true,
+              processingTime,
+              JSON.stringify({
+                reason: 'No matching routing rule',
+                aiSummary: aiAnalysis.summary,
+                aiCategories: aiAnalysis.categories,
+                aiSentiment: aiAnalysis.sentiment,
+                aiConfidence: aiAnalysis.confidence
+              })
+            ]
+          });
           flaggedItems++;
         }
       } catch (itemError) {

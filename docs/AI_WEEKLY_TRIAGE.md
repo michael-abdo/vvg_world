@@ -361,6 +361,136 @@ Provide response in JSON format.
    - JIRA/ServiceNow ticket creation
    - Custom webhook support
 
+## EC2 Deployment with Linux Cron
+
+### Setting Up EC2 Cron Jobs
+
+1. **Environment Configuration**
+   - Copy `.env.production.example` to `.env.production`
+   - Update all configuration values, especially:
+   ```bash
+   CRON_SECRET=<generate-secure-random-string>
+   INTERNAL_API_SECRET=<generate-secure-random-string>
+   OPENAI_API_KEY=<your-openai-api-key>
+   API_URL=https://legal.vtc.systems/vvg-world
+   ```
+
+2. **Deploy Application**
+   ```bash
+   # Run the main deployment script
+   ./deployment/deploy.sh
+   
+   # This automatically:
+   # - Sets up the application
+   # - Configures Linux cron job
+   # - Makes scripts executable
+   ```
+
+3. **Verify Cron Configuration**
+   ```bash
+   # Check that cron job was installed
+   crontab -l
+   
+   # Should show:
+   # 0 9 * * 1 /home/ubuntu/vvg-app/scripts/ai-triage-cron.sh
+   ```
+
+### Testing Cron Jobs
+
+**Local Testing:**
+```bash
+# Use the test script
+./scripts/test-ai-triage.sh
+
+# Test with production config
+./scripts/test-ai-triage.sh .env.production
+
+# Test specific endpoint manually
+curl -X GET http://localhost:3000/api/cron/ai-triage \
+  -H "Authorization: Bearer your-cron-secret-here"
+```
+
+**Production Testing (on EC2):**
+```bash
+# Test the cron script directly
+sudo su - ubuntu
+cd /home/ubuntu/vvg-app
+./scripts/ai-triage-cron.sh
+
+# Or test via API
+./scripts/test-ai-triage.sh .env.production
+```
+
+### Monitoring Cron Jobs
+
+1. **Linux Cron Logs**
+   ```bash
+   # View cron system logs
+   sudo tail -f /var/log/cron
+   
+   # View AI triage specific logs
+   tail -f /home/ubuntu/logs/vvg-app/ai-triage-cron.log
+   ```
+
+2. **Application Logs**
+   ```bash
+   # PM2 application logs
+   pm2 logs vvg-app
+   
+   # AI triage logs stored in `ai_triage_logs` table
+   # Check processing summary for each run
+   ```
+
+3. **Error Handling**
+   - Failed runs are logged to `/home/ubuntu/logs/vvg-app/ai-triage-cron.log.errors`
+   - Check application health: `curl http://localhost:3000/api/health`
+   - Restart application if needed: `pm2 restart vvg-app`
+
+### Security Considerations
+
+1. **Authentication**
+   - Cron endpoints protected by `CRON_SECRET`
+   - Internal API calls use `INTERNAL_API_SECRET`
+   - Production mode enforces authentication
+
+2. **File Permissions**
+   - Cron scripts are executable by ubuntu user only
+   - Environment files have restricted permissions
+   - Log files are owned by ubuntu user
+
+3. **Environment Variables**
+   - Never commit secrets to repository
+   - Use secure random strings for all secrets
+   - Rotate secrets regularly
+   - Environment file: `/home/ubuntu/vvg-app/.env.production`
+
+### Maintenance Commands
+
+```bash
+# Check cron job status
+crontab -l
+
+# Manually trigger AI triage
+/home/ubuntu/vvg-app/scripts/ai-triage-cron.sh
+
+# View recent logs
+tail -100 /home/ubuntu/logs/vvg-app/ai-triage-cron.log
+
+# Test the system
+/home/ubuntu/vvg-app/scripts/test-ai-triage.sh .env.production
+
+# Restart application
+pm2 restart vvg-app
+```
+
 ## Conclusion
 
-The AI Weekly Triage system provides an automated, intelligent solution for processing idea submissions at scale. While the frontend and database infrastructure are ready, the core AI processing engine requires implementation to make the system fully functional. This documentation provides a comprehensive roadmap for completing the implementation and extending the system's capabilities.
+The AI Weekly Triage system provides an automated, intelligent solution for processing idea submissions at scale. With the implementation of OpenAI integration and EC2 Linux Cron jobs, the system can now:
+
+1. **Automatically analyze submissions** using AI every Monday at 9 AM
+2. **Route submissions** to appropriate stakeholders based on AI-suggested categories  
+3. **Send notifications** with AI insights and analysis
+4. **Track performance** through comprehensive logging
+5. **Scale reliably** on EC2 infrastructure with PM2 process management
+
+The system is designed to be extensible and can be enhanced with additional features like custom AI models, advanced routing logic, and integration with third-party services. The EC2 deployment provides better control, reliability, and cost-effectiveness compared to serverless alternatives.

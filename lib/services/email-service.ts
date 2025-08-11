@@ -30,53 +30,52 @@ export class EmailService {
   }
 
   // Send routing notification to stakeholders
-  async sendRoutingNotification(
-    recipients: string[],
-    painPoint: PainPointEmailData,
-    action: RoutingAction
-  ): Promise<void> {
+  async sendRoutingNotification(data: {
+    painPoint: PainPointEmailData;
+    rule: any;
+    stakeholders: string[];
+    priority: string;
+    aiAnalysis?: {
+      summary: string;
+      sentiment: 'positive' | 'neutral' | 'negative';
+      confidence: number;
+      suggestedCategories: string[];
+    };
+  }): Promise<void> {
+    const recipients = data.stakeholders;
     try {
       // In development, just log the email instead of sending
       if (process.env.NODE_ENV === 'development') {
         console.log('📧 [DEV MODE] Would send routing notification email:', {
           to: recipients,
-          subject: this.generateSubject(painPoint, action.priority),
+          subject: this.generateSubject(data.painPoint, data.priority),
           painPoint: {
-            id: painPoint.id,
-            title: painPoint.title,
-            category: painPoint.category,
-            priority: action.priority
+            id: data.painPoint.id,
+            title: data.painPoint.title,
+            category: data.painPoint.category,
+            priority: data.priority
           },
-          rule: action.metadata
+          rule: data.rule,
+          aiAnalysis: data.aiAnalysis
         });
         return;
       }
 
       // Generate email content
-      const emailData: EmailNotificationData = {
+      const emailData: EmailNotificationData & { aiAnalysis?: typeof data.aiAnalysis } = {
         to: recipients,
-        subject: this.generateSubject(painPoint, action.priority),
+        subject: this.generateSubject(data.painPoint, data.priority as PriorityLevel),
         painPoint: {
-          id: painPoint.id,
-          title: painPoint.title,
-          description: painPoint.description,
-          category: painPoint.category,
-          submittedBy: painPoint.submittedBy,
-          priority: action.priority
+          id: data.painPoint.id,
+          title: data.painPoint.title,
+          description: data.painPoint.description,
+          category: data.painPoint.category,
+          submittedBy: data.painPoint.submittedBy,
+          priority: data.priority as PriorityLevel
         },
-        rule: {
-          id: action.ruleId,
-          name: action.metadata?.ruleName || 'Routing Rule',
-          category: action.metadata?.category || painPoint.category,
-          department: action.metadata?.department || 'All',
-          stakeholders: recipients,
-          priority: action.priority,
-          autoRoute: true,
-          active: true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        },
-        actionUrl: `${this.baseUrl}/admin/ideas`
+        rule: data.rule,
+        actionUrl: `${this.baseUrl}/admin/ideas`,
+        aiAnalysis: data.aiAnalysis
       };
 
       const template = this.generateEmailTemplate(emailData);
@@ -102,8 +101,8 @@ export class EmailService {
   }
 
   // Generate email template
-  private generateEmailTemplate(data: EmailNotificationData): EmailTemplate {
-    const { painPoint, rule, actionUrl } = data;
+  private generateEmailTemplate(data: EmailNotificationData & { aiAnalysis?: any }): EmailTemplate {
+    const { painPoint, rule, actionUrl, aiAnalysis } = data;
     
     const priorityColor = painPoint.priority === 'critical' ? '#dc2626' : 
                          painPoint.priority === 'high' ? '#ea580c' : 
@@ -162,6 +161,55 @@ export class EmailService {
             <strong>🔄 Routing Information:</strong><br>
             This pain point was automatically routed to you based on the "${rule.name}" rule, which targets ${rule.category} issues${rule.department !== 'All' ? ` in the ${rule.department} department` : ''}.
         </div>
+
+        ${aiAnalysis ? `
+        <div style="background-color: #f0fdf4; padding: 16px; border-radius: 8px; margin-top: 16px; border-left: 3px solid #10b981;">
+            <h3 style="margin-top: 0; color: #047857;">🤖 AI Analysis</h3>
+            
+            <div style="margin: 12px 0;">
+                <strong>Summary:</strong><br>
+                <p style="margin: 8px 0; font-style: italic;">${aiAnalysis.summary}</p>
+            </div>
+            
+            <div style="margin: 12px 0;">
+                <strong>Sentiment Analysis:</strong>
+                <span style="
+                    display: inline-block;
+                    margin-left: 8px;
+                    padding: 4px 12px;
+                    border-radius: 16px;
+                    font-size: 12px;
+                    font-weight: bold;
+                    background-color: ${aiAnalysis.sentiment === 'negative' ? '#fee2e2' : aiAnalysis.sentiment === 'positive' ? '#dcfce7' : '#f3f4f6'};
+                    color: ${aiAnalysis.sentiment === 'negative' ? '#dc2626' : aiAnalysis.sentiment === 'positive' ? '#16a34a' : '#6b7280'};
+                ">
+                    ${aiAnalysis.sentiment.toUpperCase()}
+                </span>
+                <span style="margin-left: 8px; font-size: 14px; color: #6b7280;">
+                    (Confidence: ${Math.round(aiAnalysis.confidence * 100)}%)
+                </span>
+            </div>
+            
+            ${aiAnalysis.suggestedCategories && aiAnalysis.suggestedCategories.length > 0 ? `
+            <div style="margin: 12px 0;">
+                <strong>AI-Suggested Categories:</strong>
+                <div style="margin-top: 8px;">
+                    ${aiAnalysis.suggestedCategories.map(cat => `
+                        <span style="
+                            display: inline-block;
+                            margin: 4px;
+                            padding: 4px 12px;
+                            background-color: #e0e7ff;
+                            color: #4338ca;
+                            border-radius: 16px;
+                            font-size: 12px;
+                        ">${cat}</span>
+                    `).join('')}
+                </div>
+            </div>
+            ` : ''}
+        </div>
+        ` : ''}
     </div>
 
     <div class="action-section">
@@ -201,7 +249,12 @@ ${painPoint.description}
 Routing Information:
 This pain point was automatically routed to you based on the "${rule.name}" rule, which targets ${rule.category} issues${rule.department !== 'All' ? ` in the ${rule.department} department` : ''}.
 
-Action Required:
+${aiAnalysis ? `AI ANALYSIS:
+Summary: ${aiAnalysis.summary}
+Sentiment: ${aiAnalysis.sentiment.toUpperCase()} (Confidence: ${Math.round(aiAnalysis.confidence * 100)}%)
+AI-Suggested Categories: ${aiAnalysis.suggestedCategories.join(', ')}
+
+` : ''}Action Required:
 Please review this pain point and take appropriate action based on your role as a stakeholder for ${rule.category} issues.
 
 ${actionUrl ? `View in Dashboard: ${actionUrl}` : ''}
@@ -272,6 +325,19 @@ If you have questions about this routing, please contact your system administrat
       itemsFlagged: number;
       processingTime: number;
       topCategories: Array<{category: string, count: number}>;
+      aiInsights?: {
+        averageConfidence: number;
+        sentimentBreakdown: {
+          positive: number;
+          neutral: number;
+          negative: number;
+        };
+        topAICategories: Array<{category: string, count: number}>;
+        processingStats: {
+          aiSuccessRate: number;
+          averageProcessingTime: number;
+        };
+      };
     }
   ): Promise<void> {
     try {
@@ -334,15 +400,87 @@ If you have questions about this routing, please contact your system administrat
     </ul>
     ` : ''}
     
-    <p>Processing Time: ${Math.round(summary.processingTime / 1000)}s</p>
+    ${summary.aiInsights ? `
+    <div style="background-color: #f0fdf4; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <h2 style="color: #047857; margin-top: 0;">🤖 AI Performance Insights</h2>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0;">
+            <div style="background-color: white; padding: 16px; border-radius: 6px;">
+                <h4 style="margin: 0 0 8px 0; color: #374151;">Average Confidence</h4>
+                <div style="font-size: 24px; font-weight: bold; color: #10b981;">
+                    ${Math.round(summary.aiInsights.averageConfidence * 100)}%
+                </div>
+            </div>
+            <div style="background-color: white; padding: 16px; border-radius: 6px;">
+                <h4 style="margin: 0 0 8px 0; color: #374151;">Success Rate</h4>
+                <div style="font-size: 24px; font-weight: bold; color: #10b981;">
+                    ${Math.round(summary.aiInsights.processingStats.aiSuccessRate * 100)}%
+                </div>
+            </div>
+        </div>
+        
+        <h4 style="color: #374151;">Sentiment Analysis Breakdown:</h4>
+        <div style="display: flex; gap: 12px; margin: 12px 0;">
+            <div style="flex: 1; text-align: center; padding: 12px; background-color: #dcfce7; border-radius: 6px;">
+                <div style="font-size: 20px; font-weight: bold; color: #16a34a;">${summary.aiInsights.sentimentBreakdown.positive}</div>
+                <div style="font-size: 14px; color: #374151;">Positive</div>
+            </div>
+            <div style="flex: 1; text-align: center; padding: 12px; background-color: #f3f4f6; border-radius: 6px;">
+                <div style="font-size: 20px; font-weight: bold; color: #6b7280;">${summary.aiInsights.sentimentBreakdown.neutral}</div>
+                <div style="font-size: 14px; color: #374151;">Neutral</div>
+            </div>
+            <div style="flex: 1; text-align: center; padding: 12px; background-color: #fee2e2; border-radius: 6px;">
+                <div style="font-size: 20px; font-weight: bold; color: #dc2626;">${summary.aiInsights.sentimentBreakdown.negative}</div>
+                <div style="font-size: 14px; color: #374151;">Negative</div>
+            </div>
+        </div>
+        
+        ${summary.aiInsights.topAICategories && summary.aiInsights.topAICategories.length > 0 ? `
+        <h4 style="color: #374151;">Top AI-Detected Categories:</h4>
+        <ul style="margin: 12px 0;">
+            ${summary.aiInsights.topAICategories.map(cat => `<li>${cat.category}: ${cat.count} items</li>`).join('')}
+        </ul>
+        ` : ''}
+        
+        <p style="margin-bottom: 0; font-size: 14px; color: #6b7280;">
+            Average AI processing time per item: ${Math.round(summary.aiInsights.processingStats.averageProcessingTime)}ms
+        </p>
+    </div>
+    ` : ''}
+    
+    <p>Total Processing Time: ${Math.round(summary.processingTime / 1000)}s</p>
 </body>
 </html>
     `;
 
+    const textContent = `Weekly AI Triage Summary
+
+Processed: ${summary.itemsProcessed} items
+Routed: ${summary.itemsRouted} items
+Flagged: ${summary.itemsFlagged} items
+Processing Time: ${Math.round(summary.processingTime / 1000)}s
+
+${summary.topCategories.length > 0 ? `Top Categories:
+${summary.topCategories.map(cat => `- ${cat.category}: ${cat.count} items`).join('\n')}
+
+` : ''}${summary.aiInsights ? `AI PERFORMANCE INSIGHTS:
+- Average Confidence: ${Math.round(summary.aiInsights.averageConfidence * 100)}%
+- Success Rate: ${Math.round(summary.aiInsights.processingStats.aiSuccessRate * 100)}%
+- Average Processing Time: ${Math.round(summary.aiInsights.processingStats.averageProcessingTime)}ms per item
+
+Sentiment Breakdown:
+- Positive: ${summary.aiInsights.sentimentBreakdown.positive} items
+- Neutral: ${summary.aiInsights.sentimentBreakdown.neutral} items
+- Negative: ${summary.aiInsights.sentimentBreakdown.negative} items
+
+${summary.aiInsights.topAICategories && summary.aiInsights.topAICategories.length > 0 ? `Top AI-Detected Categories:
+${summary.aiInsights.topAICategories.map(cat => `- ${cat.category}: ${cat.count} items`).join('\n')}` : ''}
+` : ''}`;
+
     return {
       subject: '🤖 Weekly AI Triage Summary - Pain Points Platform',
       html: htmlContent,
-      text: `Weekly AI Triage Summary\n\nProcessed: ${summary.itemsProcessed}\nRouted: ${summary.itemsRouted}\nFlagged: ${summary.itemsFlagged}\nProcessing Time: ${Math.round(summary.processingTime / 1000)}s`
+      text: textContent
     };
   }
 }
