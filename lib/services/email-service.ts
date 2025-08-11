@@ -132,6 +132,13 @@ export class EmailService {
 
       const result = await this.transporter.sendMail(mailOptions);
       console.log('✅ Email sent successfully:', result.messageId);
+      console.log('📧 Email details:', {
+        from: mailOptions.from,
+        to: mailOptions.to,
+        subject: mailOptions.subject,
+        messageId: result.messageId,
+        response: result.response
+      });
       
       return { success: true, messageId: result.messageId };
 

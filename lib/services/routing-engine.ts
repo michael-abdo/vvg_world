@@ -15,8 +15,8 @@ function formatRoutingRule(row: RoutingRuleRow): RoutingRule {
   return {
     id: row.id,
     name: row.name,
-    category: row.category,
-    department: row.department,
+    category: typeof row.category === 'string' ? JSON.parse(row.category) : row.category,
+    department: typeof row.department === 'string' ? JSON.parse(row.department) : row.department,
     stakeholders: typeof row.stakeholders === 'string' ? JSON.parse(row.stakeholders) : row.stakeholders,
     priority: row.priority,
     autoRoute: row.auto_route,
@@ -53,7 +53,7 @@ export class RoutingEngine {
         ORDER BY priority DESC, created_at ASC
       `;
 
-      const ruleRows = await executeQuery<RoutingRuleRow[]>(rulesQuery);
+      const ruleRows = await executeQuery<RoutingRuleRow[]>({ query: rulesQuery, values: [] });
       const allRules = ruleRows.map(formatRoutingRule);
 
       // Filter rules that match the pain point
@@ -69,15 +69,17 @@ export class RoutingEngine {
 
   // Check if a specific rule matches a pain point
   private doesRuleMatch(rule: RoutingRule, painPoint: PainPointData): boolean {
-    // Check category match (case-insensitive)
+    // Handle category matching - rule.category is now an array
+    const categories = Array.isArray(rule.category) ? rule.category : [rule.category];
     const categoryMatches = 
-      rule.category.toLowerCase() === 'all' || 
-      rule.category.toLowerCase() === painPoint.category.toLowerCase();
+      categories.some(cat => cat.toLowerCase() === 'all') || 
+      categories.some(cat => cat.toLowerCase() === painPoint.category.toLowerCase());
 
-    // Check department match (case-insensitive)
+    // Handle department matching - rule.department is now an array
+    const departments = Array.isArray(rule.department) ? rule.department : [rule.department];
     let departmentMatches = true;
-    if (rule.department.toLowerCase() !== 'all' && painPoint.department) {
-      departmentMatches = rule.department.toLowerCase() === painPoint.department.toLowerCase();
+    if (!departments.some(dept => dept.toLowerCase() === 'all') && painPoint.department) {
+      departmentMatches = departments.some(dept => dept.toLowerCase() === painPoint.department.toLowerCase());
     }
 
     return categoryMatches && departmentMatches;
@@ -104,7 +106,8 @@ export class RoutingEngine {
             metadata: {
               ruleName: rule.name,
               category: rule.category,
-              department: rule.department
+              department: rule.department,
+              fullRule: rule  // Add the full rule object for email service
             }
           });
         }
@@ -187,7 +190,12 @@ export class RoutingEngine {
         const emailService = new EmailService();
         
         const emails = Array.isArray(action.target) ? action.target : [action.target];
-        await emailService.sendRoutingNotification(emails, painPoint, action);
+        await emailService.sendRoutingNotification({
+          painPoint: painPoint,
+          rule: action.metadata.fullRule,
+          stakeholders: emails,
+          priority: action.metadata.fullRule.priority
+        });
         break;
 
       case 'flag':
@@ -219,21 +227,24 @@ export class RoutingEngine {
     try {
       const stakeholdersNotified = Array.isArray(target) ? target : [target];
 
-      await executeQuery(`
-        INSERT INTO routing_rule_logs (
-          rule_id, pain_point_id, action_taken, stakeholders_notified, 
-          priority_assigned, success, error_message, processing_time_ms
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `, [
-        ruleId,
-        painPointId,
-        actionTaken,
-        JSON.stringify(stakeholdersNotified),
-        priority,
-        success,
-        errorMessage,
-        processingTimeMs
-      ]);
+      await executeQuery({
+        query: `
+          INSERT INTO routing_rule_logs (
+            rule_id, pain_point_id, action_taken, stakeholders_notified, 
+            priority_assigned, success, error_message, processing_time_ms
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        values: [
+          ruleId,
+          painPointId,
+          actionTaken,
+          JSON.stringify(stakeholdersNotified),
+          priority,
+          success,
+          errorMessage,
+          processingTimeMs
+        ]
+      });
 
     } catch (error) {
       console.error('Failed to log routing action:', error);
