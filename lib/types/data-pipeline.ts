@@ -1,8 +1,8 @@
 // Data Pipeline Type Definitions
 
 export type PriorityLevel = 'low' | 'medium' | 'high' | 'critical';
-export type TriggerType = 'keywords' | 'similarity' | 'sentiment' | 'length' | 'custom';
-export type ActionType = 'escalate' | 'tag' | 'flag' | 'hold' | 'ignore' | 'route';
+// Simplified AI Rules action types - only email and tagging supported
+export type ActionType = 'send_email' | 'add_tag';
 
 export interface RoutingRule {
   id: number;
@@ -34,10 +34,9 @@ export interface UpdateRoutingRuleRequest extends Partial<CreateRoutingRuleReque
 export interface AIRule {
   id: number;
   name: string;
-  triggerType: TriggerType;
-  triggerDetails: string;
+  triggerPrompt: string;  // Natural language prompt for AI classification
   actionType: ActionType;
-  actionTarget: string;
+  actionTarget: string;   // Email address for send_email or tag name for add_tag
   priority: PriorityLevel;
   active: boolean;
   lastTriggeredAt: string | null;
@@ -48,10 +47,9 @@ export interface AIRule {
 
 export interface CreateAIRuleRequest {
   name: string;
-  triggerType: TriggerType;
-  triggerDetails: string;
+  triggerPrompt: string;  // Natural language prompt for AI classification
   actionType: ActionType;
-  actionTarget: string;
+  actionTarget: string;   // Email address for send_email or tag name for add_tag
   priority?: PriorityLevel;
   active?: boolean;
 }
@@ -244,8 +242,7 @@ export interface AITriageConfigRow {
 export interface AIRuleRow {
   id: number;
   name: string;
-  trigger_type: TriggerType;
-  trigger_details: string;
+  trigger_prompt: string;
   action_type: ActionType;
   action_target: string;
   priority: PriorityLevel;

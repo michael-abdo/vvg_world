@@ -12,9 +12,8 @@ import { z } from 'zod';
 // Validation schemas
 const UpdateAIRuleSchema = z.object({
   name: z.string().min(1, "Name is required").max(255).optional(),
-  triggerType: z.enum(['keywords', 'similarity', 'sentiment', 'length', 'custom']).optional(),
-  triggerDetails: z.string().min(1, "Trigger details are required").optional(),
-  actionType: z.enum(['escalate', 'tag', 'flag', 'hold', 'ignore', 'route']).optional(),
+  triggerPrompt: z.string().min(10, "Trigger prompt must be at least 10 characters").max(1000, "Trigger prompt too long").optional(),
+  actionType: z.enum(['send_email', 'add_tag']).optional(),
   actionTarget: z.string().min(1, "Action target is required").max(255).optional(),
   priority: z.enum(['low', 'medium', 'high', 'critical']).optional(),
   active: z.boolean().optional()
@@ -25,8 +24,7 @@ function formatAIRule(row: AIRuleRow): AIRule {
   return {
     id: row.id,
     name: row.name,
-    triggerType: row.trigger_type,
-    triggerDetails: row.trigger_details,
+    triggerPrompt: row.trigger_prompt,
     actionType: row.action_type,
     actionTarget: row.action_target,
     priority: row.priority,
@@ -59,7 +57,7 @@ export async function GET(
 
     const rows = await executeQuery<AIRuleRow[]>({
       query: `SELECT 
-        id, name, trigger_type, trigger_details, action_type, action_target, 
+        id, name, trigger_prompt, action_type, action_target, 
         priority, active, last_triggered_at, trigger_count, created_at, updated_at
       FROM ai_rules 
       WHERE id = ?`,
@@ -187,13 +185,9 @@ export async function PUT(
       updateFields.push('name = ?');
       updateValues.push(data.name);
     }
-    if (data.triggerType) {
-      updateFields.push('trigger_type = ?');
-      updateValues.push(data.triggerType);
-    }
-    if (data.triggerDetails) {
-      updateFields.push('trigger_details = ?');
-      updateValues.push(data.triggerDetails);
+    if (data.triggerPrompt) {
+      updateFields.push('trigger_prompt = ?');
+      updateValues.push(data.triggerPrompt);
     }
     if (data.actionType) {
       updateFields.push('action_type = ?');
@@ -237,7 +231,7 @@ export async function PUT(
     // Fetch the updated rule
     const updatedRule = await executeQuery<AIRuleRow[]>({
       query: `SELECT 
-        id, name, trigger_type, trigger_details, action_type, action_target, 
+        id, name, trigger_prompt, action_type, action_target, 
         priority, active, last_triggered_at, trigger_count, created_at, updated_at
       FROM ai_rules 
       WHERE id = ?`,

@@ -6,7 +6,6 @@ import {
   AIRuleRow, 
   CreateAIRuleRequest,
   APIResponse,
-  TriggerType,
   ActionType,
   PriorityLevel 
 } from '@/lib/types/data-pipeline';
@@ -15,9 +14,8 @@ import { z } from 'zod';
 // Validation schemas
 const CreateAIRuleSchema = z.object({
   name: z.string().min(1, "Name is required").max(255),
-  triggerType: z.enum(['keywords', 'similarity', 'sentiment', 'length', 'custom']),
-  triggerDetails: z.string().min(1, "Trigger details are required"),
-  actionType: z.enum(['escalate', 'tag', 'flag', 'hold', 'ignore', 'route']),
+  triggerPrompt: z.string().min(10, "Trigger prompt must be at least 10 characters").max(1000, "Trigger prompt too long"),
+  actionType: z.enum(['send_email', 'add_tag']),
   actionTarget: z.string().min(1, "Action target is required").max(255),
   priority: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
   active: z.boolean().default(true)
@@ -28,8 +26,7 @@ function formatAIRule(row: AIRuleRow): AIRule {
   return {
     id: row.id,
     name: row.name,
-    triggerType: row.trigger_type,
-    triggerDetails: row.trigger_details,
+    triggerPrompt: row.trigger_prompt,
     actionType: row.action_type,
     actionTarget: row.action_target,
     priority: row.priority,
@@ -46,12 +43,11 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const active = searchParams.get('active');
-    const triggerType = searchParams.get('triggerType');
     const actionType = searchParams.get('actionType');
 
     let query = `
       SELECT 
-        id, name, trigger_type, trigger_details, action_type, action_target, 
+        id, name, trigger_prompt, action_type, action_target, 
         priority, active, last_triggered_at, trigger_count, created_at, updated_at
       FROM ai_rules
       WHERE 1=1
@@ -62,11 +58,6 @@ export async function GET(request: NextRequest) {
     if (active !== null) {
       query += ' AND active = ?';
       params.push(active === 'true');
-    }
-
-    if (triggerType) {
-      query += ' AND trigger_type = ?';
-      params.push(triggerType);
     }
 
     if (actionType) {
@@ -147,14 +138,13 @@ export async function POST(request: NextRequest) {
     // Insert new AI rule
     const insertQuery = `
       INSERT INTO ai_rules (
-        name, trigger_type, trigger_details, action_type, action_target, priority, active
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        name, trigger_prompt, action_type, action_target, priority, active
+      ) VALUES (?, ?, ?, ?, ?, ?)
     `;
 
     const result = await executeQuery({ query: insertQuery, values: [
       data.name,
-      data.triggerType,
-      data.triggerDetails,
+      data.triggerPrompt,
       data.actionType,
       data.actionTarget,
       data.priority,
@@ -164,7 +154,7 @@ export async function POST(request: NextRequest) {
     // Fetch the created rule
     const createdRule = await executeQuery<AIRuleRow[]>({
       query: `SELECT 
-        id, name, trigger_type, trigger_details, action_type, action_target, 
+        id, name, trigger_prompt, action_type, action_target, 
         priority, active, last_triggered_at, trigger_count, created_at, updated_at
       FROM ai_rules 
       WHERE id = ?`,

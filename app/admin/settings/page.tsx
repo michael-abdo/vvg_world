@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -107,9 +108,8 @@ export default function SettingsPage() {
   // Form state for creating new AI rule
   const [newAIRule, setNewAIRule] = useState({
     name: '',
-    triggerType: 'keywords' as const,
-    triggerDetails: '',
-    actionType: 'escalate' as const,
+    triggerPrompt: '',
+    actionType: 'send_email' as const,
     actionTarget: '',
     priority: 'medium' as const,
     active: true
@@ -268,10 +268,10 @@ export default function SettingsPage() {
       return;
     }
     
-    if (!newAIRule.triggerDetails.trim()) {
+    if (!newAIRule.triggerPrompt.trim() || newAIRule.triggerPrompt.trim().length < 10) {
       toast({
         title: "Validation Error",
-        description: "Please enter trigger details",
+        description: "Please enter a meaningful trigger prompt (at least 10 characters)",
         variant: "destructive",
       });
       return;
@@ -289,8 +289,7 @@ export default function SettingsPage() {
     try {
       const result = await createAIRule({
         name: newAIRule.name,
-        triggerType: newAIRule.triggerType,
-        triggerDetails: newAIRule.triggerDetails,
+        triggerPrompt: newAIRule.triggerPrompt,
         actionType: newAIRule.actionType,
         actionTarget: newAIRule.actionTarget,
         priority: newAIRule.priority,
@@ -307,9 +306,8 @@ export default function SettingsPage() {
         // Reset form and close dialog
         setNewAIRule({
           name: '',
-          triggerType: 'keywords',
-          triggerDetails: '',
-          actionType: 'escalate',
+          triggerPrompt: '',
+          actionType: 'send_email',
           actionTarget: '',
           priority: 'medium',
           active: true
@@ -709,35 +707,22 @@ export default function SettingsPage() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="trigger">Trigger Condition</Label>
-                      <Select 
-                        value={newAIRule.triggerType} 
-                        onValueChange={(value: any) => setNewAIRule({...newAIRule, triggerType: value})}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select trigger type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="keywords">Contains Keywords</SelectItem>
-                          <SelectItem value="similarity">Similar to Existing</SelectItem>
-                          <SelectItem value="sentiment">Negative Sentiment</SelectItem>
-                          <SelectItem value="length">Content Length</SelectItem>
-                          <SelectItem value="custom">Custom AI Analysis</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="trigger-details">Trigger Details</Label>
-                      <Input 
-                        id="trigger-details" 
-                        placeholder="e.g., safety, hazard, danger, accident" 
-                        value={newAIRule.triggerDetails}
-                        onChange={(e) => setNewAIRule({...newAIRule, triggerDetails: e.target.value})}
+                      <Label htmlFor="trigger-prompt">AI Classification Prompt</Label>
+                      <Textarea 
+                        id="trigger-prompt" 
+                        placeholder="Describe when this rule should trigger. For example: 'Classify messages about safety concerns, accidents, or hazardous conditions' or 'Identify cost-saving suggestions or budget optimization ideas'"
+                        value={newAIRule.triggerPrompt}
+                        onChange={(e) => setNewAIRule({...newAIRule, triggerPrompt: e.target.value})}
+                        rows={3}
+                        className="min-h-[80px]"
                       />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Write a clear description of when this rule should trigger. The AI will use this to classify incoming messages.
+                      </p>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <Label htmlFor="action">Action</Label>
+                        <Label htmlFor="action">Action Type</Label>
                         <Select 
                           value={newAIRule.actionType} 
                           onValueChange={(value: any) => setNewAIRule({...newAIRule, actionType: value})}
@@ -746,23 +731,30 @@ export default function SettingsPage() {
                             <SelectValue placeholder="Select action" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="escalate">Escalate to Email</SelectItem>
-                            <SelectItem value="tag">Add Tag</SelectItem>
-                            <SelectItem value="flag">Flag for Review</SelectItem>
-                            <SelectItem value="hold">Hold for Clarification</SelectItem>
-                            <SelectItem value="ignore">Ignore/Archive</SelectItem>
-                            <SelectItem value="route">Route to Department</SelectItem>
+                            <SelectItem value="send_email">Send Email</SelectItem>
+                            <SelectItem value="add_tag">Add Tag</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                       <div>
-                        <Label htmlFor="target">Target</Label>
+                        <Label htmlFor="target">
+                          {newAIRule.actionType === 'add_tag' ? 'Tag Name' : 'Email Address'}
+                        </Label>
                         <Input 
                           id="target" 
-                          placeholder="Email or tag name" 
+                          placeholder={newAIRule.actionType === 'add_tag' 
+                            ? "e.g., safety-urgent, cost-reduction" 
+                            : "e.g., admin@vvgtruck.com, safety@vvgtruck.com"
+                          }
                           value={newAIRule.actionTarget}
                           onChange={(e) => setNewAIRule({...newAIRule, actionTarget: e.target.value})}
                         />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {newAIRule.actionType === 'add_tag' 
+                            ? 'Enter the tag name to add to matching messages'
+                            : 'Enter the email address to notify when this rule triggers'
+                          }
+                        </p>
                       </div>
                     </div>
                     <div>
