@@ -603,101 +603,6 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>AI Weekly Triage</CardTitle>
-              <CardDescription>Configure the AI bot that automatically triages submissions every week</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {aiTriageLoading && (
-                <div className="flex items-center justify-center p-8">
-                  <div className="text-sm text-gray-500">Loading AI triage status...</div>
-                </div>
-              )}
-              
-              {aiTriageError && (
-                <div className="flex items-center justify-center p-8">
-                  <div className="text-sm text-red-500">Error: {aiTriageError}</div>
-                </div>
-              )}
-              
-              {!aiTriageLoading && !aiTriageError && aiTriageStatus && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
-                    <div>
-                      <h3 className="font-medium">Weekly AI Triage</h3>
-                      <p className="text-sm text-gray-500">
-                        {aiTriageStatus.config.scheduleCron === '0 9 * * 1' 
-                          ? 'Runs every Monday at 9:00 AM' 
-                          : `Schedule: ${aiTriageStatus.config.scheduleCron}`}
-                      </p>
-                      {aiTriageStatus.isRunning && (
-                        <p className="text-sm text-blue-600 font-medium">Currently running...</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <Badge className="bg-blue-100 text-blue-800">
-                        <Bot className="h-3 w-3 mr-1" />
-                        AI Powered
-                      </Badge>
-                      <Switch 
-                        checked={aiTriageStatus.config.enabled} 
-                        disabled={true}
-                      />
-                      <Button 
-                        size="sm" 
-                        onClick={async () => {
-                          const result = await triggerTriage();
-                          if (result) {
-                            toast({
-                              title: "AI Triage Started",
-                              description: "The AI triage process has been triggered and is now running.",
-                            });
-                          } else {
-                            toast({
-                              title: "Error",
-                              description: "Failed to trigger AI triage. Please try again.",
-                              variant: "destructive",
-                            });
-                          }
-                        }}
-                        disabled={triggeringTriage || aiTriageStatus.isRunning}
-                      >
-                        {triggeringTriage ? 'Triggering...' : 'Trigger Now'}
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div className="p-3 bg-gray-50 rounded-lg">
-                      <div className="font-medium mb-1">Last Run</div>
-                      <div className="text-gray-600">
-                        {aiTriageStatus.lastRun?.completedAt 
-                          ? new Date(aiTriageStatus.lastRun.completedAt).toLocaleString()
-                          : 'Never run'
-                        }
-                      </div>
-                      <div className="text-gray-500">
-                        Processed {aiTriageStatus.lastRun?.itemsProcessed || 0} ideas
-                      </div>
-                    </div>
-                    <div className="p-3 bg-gray-50 rounded-lg">
-                      <div className="font-medium mb-1">Next Run</div>
-                      <div className="text-gray-600">
-                        {aiTriageStatus.nextRun.scheduledAt 
-                          ? new Date(aiTriageStatus.nextRun.scheduledAt).toLocaleString()
-                          : 'Not scheduled'
-                        }
-                      </div>
-                      <div className="text-gray-500">
-                        {aiTriageStatus.nextRun.pendingItems} ideas pending
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
         </TabsContent>
 
         {/* AI Rules Tab */}
@@ -932,6 +837,101 @@ export default function SettingsPage() {
                   </div>
                 )}
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>AI Weekly Triage</CardTitle>
+              <CardDescription>Configure the AI bot that automatically triages submissions every week</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {aiTriageLoading && (
+                <div className="flex items-center justify-center p-8">
+                  <div className="text-sm text-gray-500">Loading AI triage status...</div>
+                </div>
+              )}
+              
+              {aiTriageError && (
+                <div className="flex items-center justify-center p-8">
+                  <div className="text-sm text-red-500">Error: {aiTriageError}</div>
+                </div>
+              )}
+              
+              {!aiTriageLoading && !aiTriageError && aiTriageStatus && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <h3 className="font-medium">Weekly AI Triage</h3>
+                      <p className="text-sm text-gray-500">
+                        {aiTriageStatus.config.scheduleCron === '0 9 * * 1' 
+                          ? 'Runs every Monday at 9:00 AM' 
+                          : `Schedule: ${aiTriageStatus.config.scheduleCron}`}
+                      </p>
+                      {aiTriageStatus.isRunning && (
+                        <p className="text-sm text-blue-600 font-medium">Currently running...</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <Badge className="bg-blue-100 text-blue-800">
+                        <Bot className="h-3 w-3 mr-1" />
+                        AI Powered
+                      </Badge>
+                      <Switch 
+                        checked={aiTriageStatus.config.enabled} 
+                        disabled={true}
+                      />
+                      <Button 
+                        size="sm" 
+                        onClick={async () => {
+                          const result = await triggerTriage();
+                          if (result) {
+                            toast({
+                              title: "AI Triage Started",
+                              description: "The AI triage process has been triggered and is now running.",
+                            });
+                          } else {
+                            toast({
+                              title: "Error",
+                              description: "Failed to trigger AI triage. Please try again.",
+                              variant: "destructive",
+                            });
+                          }
+                        }}
+                        disabled={triggeringTriage || aiTriageStatus.isRunning}
+                      >
+                        {triggeringTriage ? 'Triggering...' : 'Trigger Now'}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <div className="font-medium mb-1">Last Run</div>
+                      <div className="text-gray-600">
+                        {aiTriageStatus.lastRun?.completedAt 
+                          ? new Date(aiTriageStatus.lastRun.completedAt).toLocaleString()
+                          : 'Never run'
+                        }
+                      </div>
+                      <div className="text-gray-500">
+                        Processed {aiTriageStatus.lastRun?.itemsProcessed || 0} ideas
+                      </div>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <div className="font-medium mb-1">Next Run</div>
+                      <div className="text-gray-600">
+                        {aiTriageStatus.nextRun.scheduledAt 
+                          ? new Date(aiTriageStatus.nextRun.scheduledAt).toLocaleString()
+                          : 'Not scheduled'
+                        }
+                      </div>
+                      <div className="text-gray-500">
+                        {aiTriageStatus.nextRun.pendingItems} ideas pending
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
