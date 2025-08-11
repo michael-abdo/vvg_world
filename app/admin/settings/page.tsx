@@ -17,10 +17,12 @@ import { useAIRules } from '@/lib/hooks/useAIRules';
 import { useAITriage } from '@/lib/hooks/useAITriage';
 import { useToast } from '@/components/ui/use-toast';
 import { EditRoutingRuleDialog } from '@/components/forms/EditRoutingRuleDialog';
+import { EditAIRuleDialog } from '@/components/forms/EditAIRuleDialog';
+import { EditAITriageConfigDialog } from '@/components/forms/EditAITriageConfigDialog';
 import { CategoryMultiSelect } from '@/components/forms/CategoryMultiSelect';
 import { DepartmentMultiSelect } from '@/components/forms/DepartmentMultiSelect';
 import { MultiSelectPills } from '@/components/ui/multi-select-pills';
-import { RoutingRule, UpdateRoutingRuleRequest } from '@/lib/types/data-pipeline';
+import { RoutingRule, UpdateRoutingRuleRequest, AIRule, UpdateAIRuleRequest, AITriageConfig, UpdateAITriageConfigRequest } from '@/lib/types/data-pipeline';
 
 // Mock data
 const departments = [
@@ -87,6 +89,9 @@ export default function SettingsPage() {
   const [createAIRuleDialogOpen, setCreateAIRuleDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<RoutingRule | null>(null);
+  const [editAIRuleDialogOpen, setEditAIRuleDialogOpen] = useState(false);
+  const [editingAIRule, setEditingAIRule] = useState<AIRule | null>(null);
+  const [editAITriageConfigDialogOpen, setEditAITriageConfigDialogOpen] = useState(false);
   const { toast } = useToast();
   
   // Form state for creating new routing rule
@@ -129,7 +134,9 @@ export default function SettingsPage() {
     loading: aiTriageLoading, 
     error: aiTriageError,
     triggerTriage,
-    triggering: triggeringTriage
+    triggering: triggeringTriage,
+    updateConfig,
+    updatingConfig
   } = useAITriage();
   
   // AI Rules hooks
@@ -365,6 +372,72 @@ export default function SettingsPage() {
   const handleEditButtonClick = (rule: RoutingRule) => {
     setEditingRule(rule);
     setEditDialogOpen(true);
+  };
+
+  // AI Rules edit handlers
+  const handleEditAIRuleButtonClick = (rule: AIRule) => {
+    setEditingAIRule(rule);
+    setEditAIRuleDialogOpen(true);
+  };
+
+  const handleEditAIRule = async (updates: UpdateAIRuleRequest) => {
+    try {
+      const result = await updateAIRule(updates.id, updates);
+      
+      if (result) {
+        toast({
+          title: "Success",
+          description: `AI rule "${result.name}" updated successfully.`,
+        });
+        setEditAIRuleDialogOpen(false);
+        setEditingAIRule(null);
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to update AI rule.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error updating AI rule:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update AI rule.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // AI Triage config edit handlers
+  const handleEditAITriageConfigButtonClick = () => {
+    setEditAITriageConfigDialogOpen(true);
+  };
+
+  const handleEditAITriageConfig = async (updates: UpdateAITriageConfigRequest) => {
+    try {
+      const result = await updateConfig(updates);
+      
+      if (result) {
+        toast({
+          title: "Success",
+          description: "AI triage configuration updated successfully.",
+        });
+        setEditAITriageConfigDialogOpen(false);
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to update AI triage configuration.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error updating AI triage config:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update AI triage configuration.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -799,7 +872,7 @@ export default function SettingsPage() {
                           }}
                           disabled={updatingAIRule}
                         />
-                        <Button size="sm" variant="outline" disabled={updatingAIRule}>
+                        <Button size="sm" variant="outline" onClick={() => handleEditAIRuleButtonClick(rule)} disabled={updatingAIRule}>
                           <Edit className="h-4 w-4" />
                         </Button>
                         <Button 
@@ -881,6 +954,14 @@ export default function SettingsPage() {
                         checked={aiTriageStatus.config.enabled} 
                         disabled={true}
                       />
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={handleEditAITriageConfigButtonClick}
+                      >
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit
+                      </Button>
                       <Button 
                         size="sm" 
                         onClick={async () => {
@@ -972,6 +1053,23 @@ export default function SettingsPage() {
         onSubmit={handleEditRule}
         loading={updatingRule}
       />
+
+      <EditAIRuleDialog
+        rule={editingAIRule}
+        open={editAIRuleDialogOpen}
+        onOpenChange={setEditAIRuleDialogOpen}
+        onSubmit={handleEditAIRule}
+        loading={updatingAIRule}
+      />
+
+      <EditAITriageConfigDialog
+        rule={aiTriageStatus?.config || null}
+        open={editAITriageConfigDialogOpen}
+        onOpenChange={setEditAITriageConfigDialogOpen}
+        onSubmit={handleEditAITriageConfig}
+        loading={updatingConfig}
+      />
+      {/* Edit dialogs for AI Rules and AI Triage configuration */}
     </div>
   );
 }
