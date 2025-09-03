@@ -292,34 +292,38 @@ Completed comprehensive DRY refactoring with focus on eliminating remaining code
 ## Project Structure
 
 ```
-NDA/
+vvg_world/
 ├── app/                    # Next.js app directory
 │   ├── api/               # API routes
-│   ├── compare/           # Document comparison page
-│   ├── documents/         # Document library page
-│   └── upload/            # Upload page
+│   ├── admin/             # Admin pages
+│   ├── dashboard/         # Dashboard page
+│   ├── ideas/             # Ideas submission page
+│   └── submissions/       # Pain points submissions
 ├── components/            # React components
+│   ├── forms/             # Form components
 │   └── ui/               # UI components (shadcn/ui)
 ├── database/              # Database migrations
 │   └── migrations/       # SQL migration files
 ├── deployment/            # Deployment configurations
 ├── docs/                  # Documentation
-│   ├── MASTER.md         # Master documentation
-│   ├── STATUS.md         # Project status & development log
-│   └── git-workflow.md   # Git workflow strategy
-├── documents/             # Sample NDA documents
-│   ├── third-party/      # Third-party NDAs
-│   └── vvg/              # VVG standard templates
+│   ├── api/              # API documentation
+│   ├── deployment/       # Deployment guides
+│   ├── examples/         # Example configurations
+│   └── legacy/           # Legacy/archived docs
 ├── hooks/                 # React hooks
 ├── lib/                   # Library code
-│   ├── nda/              # NDA-specific modules
-│   └── storage/          # Storage abstraction
+│   ├── api/              # API utilities
+│   ├── hooks/            # Custom React hooks
+│   ├── services/         # Service modules
+│   ├── storage/          # Storage abstraction
+│   ├── template/         # Template repositories
+│   ├── types/            # Type definitions
+│   └── utils/            # Utility functions
 ├── public/                # Static assets
-├── scripts/               # Build and dev scripts
-│   ├── database/         # Database scripts
+├── scripts/               # Build and utility scripts
 │   ├── dev/              # Development scripts
-│   └── tests/            # Test scripts
-├── tests/                 # Test files
+│   └── test-*.ts         # Test scripts
+├── test-data/             # Test data files
 ├── types/                 # TypeScript type definitions
 └── @types/                # Custom type declarations
     └── pdf-parse/        # Types for pdf-parse module
